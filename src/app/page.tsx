@@ -1,34 +1,9 @@
 "use client";
 
-import { SignInButton, useAuth } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 export default function LandingPage() {
-  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      router.push("/dashboard");
-    }
-  }, [isLoaded, isSignedIn, router]);
-
-  if (!isLoaded) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-gray-500">Cargando...</p>
-      </div>
-    );
-  }
-
-  if (isSignedIn) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-gray-500">Redirigiendo...</p>
-      </div>
-    );
-  }
 
   return (
     <main className="flex-1 flex flex-col">
@@ -61,11 +36,12 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <SignInButton mode="modal">
-            <button className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-8 rounded-lg text-lg transition-colors">
-              Comenzar con Google
-            </button>
-          </SignInButton>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-8 rounded-lg text-lg transition-colors"
+          >
+            Comenzar
+          </button>
         </div>
       </div>
 

@@ -11,7 +11,6 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.63",
     "@ai-sdk/react": "^3.0.164",
-    "@clerk/nextjs": "^7.2.1",
     "ai": "^6.0.162",
     "next": "16.2.3",
     "pdfjs-dist": "^5.6.205",
