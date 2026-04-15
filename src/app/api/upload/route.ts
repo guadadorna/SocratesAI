@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractText, getDocumentProxy } from "unpdf";
+import PDFParser from "pdf2json";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,13 +20,55 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
+    const buffer = Buffer.from(arrayBuffer);
 
-    if (pdf.numPages > 100) {
-      return NextResponse.json({ error: "El PDF no puede tener más de 100 páginas" }, { status: 400 });
+    interface TextItem {
+      R?: Array<{ T?: string }>;
+    }
+    interface PDFPage {
+      Texts?: TextItem[];
+    }
+    interface PDFData {
+      Pages: PDFPage[];
     }
 
-    const { text } = await extractText(new Uint8Array(arrayBuffer), { mergePages: true });
+    const { text, pageCount } = await new Promise<{ text: string; pageCount: number }>((resolve, reject) => {
+      const pdfParser = new PDFParser();
+
+      pdfParser.on("pdfParser_dataError", (errData: Error | { parserError: Error }) => {
+        reject(errData instanceof Error ? errData : errData.parserError);
+      });
+
+      pdfParser.on("pdfParser_dataReady", (pdfData: PDFData) => {
+        // Extract text manually from the parsed data
+        let extractedText = "";
+        for (const page of pdfData.Pages) {
+          if (page.Texts) {
+            for (const textItem of page.Texts) {
+              if (textItem.R) {
+                for (const run of textItem.R) {
+                  if (run.T) {
+                    try {
+                      extractedText += decodeURIComponent(run.T) + " ";
+                    } catch {
+                      extractedText += run.T + " ";
+                    }
+                  }
+                }
+              }
+            }
+          }
+          extractedText += "\n";
+        }
+        resolve({ text: extractedText, pageCount: pdfData.Pages.length });
+      });
+
+      pdfParser.parseBuffer(buffer);
+    });
+
+    if (pageCount > 100) {
+      return NextResponse.json({ error: "El PDF no puede tener más de 100 páginas" }, { status: 400 });
+    }
 
     // Limpiar el texto extraído
     const cleanedText = text
@@ -36,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       text: cleanedText,
-      pageCount: pdf.numPages,
+      pageCount,
     });
   } catch (error) {
     console.error("Error parsing PDF:", error);
