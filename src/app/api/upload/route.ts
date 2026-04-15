@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import pdfParse from "pdf-parse-new";
+import { extractText, getDocumentProxy } from "unpdf";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,23 +20,23 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const pdf = await getDocumentProxy(new Uint8Array(arrayBuffer));
 
-    const data = await pdfParse(buffer);
-
-    if (data.numpages > 100) {
+    if (pdf.numPages > 100) {
       return NextResponse.json({ error: "El PDF no puede tener más de 100 páginas" }, { status: 400 });
     }
 
+    const { text } = await extractText(new Uint8Array(arrayBuffer), { mergePages: true });
+
     // Limpiar el texto extraído
-    const cleanedText = data.text
+    const cleanedText = text
       .replace(/\s+/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
     return NextResponse.json({
       text: cleanedText,
-      pageCount: data.numpages,
+      pageCount: pdf.numPages,
     });
   } catch (error) {
     console.error("Error parsing PDF:", error);
