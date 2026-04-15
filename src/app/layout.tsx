@@ -15,6 +15,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SocratesAI - Tutor Socrático",
   description: "Aprendé mediante preguntas con tu tutor socrático personalizado",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
+  themeColor: "#0d9488",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SocratesAI",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
