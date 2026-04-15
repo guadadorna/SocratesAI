@@ -69,8 +69,8 @@ export default function DashboardPage() {
 
       const { text, pageCount } = await response.json();
 
-      if (pageCount > 50) {
-        throw new Error("El PDF no puede tener más de 50 páginas");
+      if (pageCount > 100) {
+        throw new Error("El PDF no puede tener más de 100 páginas");
       }
 
       const sessionId = uuidv4();

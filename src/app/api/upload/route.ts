@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import pdfParse from "pdf-parse-new";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,35 +20,23 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
 
-    const pdf = await pdfjsLib.getDocument({ data: uint8Array, useWorkerFetch: false, isEvalSupported: false, useSystemFonts: true }).promise;
-    const numPages = pdf.numPages;
+    const data = await pdfParse(buffer);
 
-    if (numPages > 50) {
-      return NextResponse.json({ error: "El PDF no puede tener más de 50 páginas" }, { status: 400 });
-    }
-
-    // Extraer texto de todas las páginas
-    let fullText = "";
-    for (let i = 1; i <= numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item) => ("str" in item ? item.str : ""))
-        .join(" ");
-      fullText += pageText + "\n\n";
+    if (data.numpages > 100) {
+      return NextResponse.json({ error: "El PDF no puede tener más de 100 páginas" }, { status: 400 });
     }
 
     // Limpiar el texto extraído
-    const cleanedText = fullText
+    const cleanedText = data.text
       .replace(/\s+/g, " ")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
     return NextResponse.json({
       text: cleanedText,
-      pageCount: numPages,
+      pageCount: data.numpages,
     });
   } catch (error) {
     console.error("Error parsing PDF:", error);
