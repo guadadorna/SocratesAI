@@ -4,6 +4,9 @@ import { getTutorPrompt } from "@/lib/prompts";
 
 export const maxDuration = 60;
 
+// Modelos en orden de preferencia
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+
 export async function POST(request: Request) {
   try {
     const { messages, pdfContent, timeMinutes, additionalContext, isClosingPhase } =
@@ -16,8 +19,6 @@ export async function POST(request: Request) {
       });
     }
 
-    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-
     let systemPrompt = getTutorPrompt({
       tiempoTotalMinutos: timeMinutes,
       contextoAdicional: additionalContext,
@@ -29,13 +30,25 @@ export async function POST(request: Request) {
       systemPrompt += `\n\nIMPORTANTE: Quedan menos de 2 minutos de sesión. Comenzá a cerrar la conversación de forma natural. Hacé una síntesis breve de lo que se trabajó y pedile al estudiante que te cuente en una frase lo más importante que aprendió o se lleva de esta sesión.`;
     }
 
-    const result = await streamText({
-      model: google(model),
-      system: systemPrompt,
-      messages,
-    });
+    // Intentar con modelos en orden de preferencia
+    for (const modelName of MODELS) {
+      try {
+        const result = streamText({
+          model: google(modelName),
+          system: systemPrompt,
+          messages,
+        });
+        return result.toTextStreamResponse();
+      } catch (error) {
+        const isLastModel = modelName === MODELS[MODELS.length - 1];
+        if (isLastModel) {
+          throw error;
+        }
+        console.log(`Model ${modelName} failed, trying next...`);
+      }
+    }
 
-    return result.toTextStreamResponse();
+    throw new Error("Todos los modelos fallaron");
   } catch (error) {
     console.error("Chat error:", error);
     return new Response(JSON.stringify({ error: "Error en el chat" }), {

@@ -4,6 +4,28 @@ import { getEvaluatorPrompt } from "@/lib/prompts";
 
 export const maxDuration = 60;
 
+// Modelos en orden de preferencia
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+
+async function generateWithFallback(prompt: string): Promise<string> {
+  for (const modelName of MODELS) {
+    try {
+      const { text } = await generateText({
+        model: google(modelName),
+        prompt,
+      });
+      return text;
+    } catch (error) {
+      const isLastModel = modelName === MODELS[MODELS.length - 1];
+      if (isLastModel) {
+        throw error;
+      }
+      console.log(`Model ${modelName} failed, trying next...`);
+    }
+  }
+  throw new Error("Todos los modelos fallaron");
+}
+
 export async function POST(request: Request) {
   try {
     const { messages, pdfContent, timeMinutes, additionalContext } = await request.json();
@@ -23,8 +45,6 @@ export async function POST(request: Request) {
       })
       .join("\n\n");
 
-    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-
     const prompt = getEvaluatorPrompt({
       transcripcion,
       contenidoPdf: pdfContent,
@@ -32,10 +52,7 @@ export async function POST(request: Request) {
       tiempoTotalMinutos: timeMinutes,
     });
 
-    const { text } = await generateText({
-      model: google(model),
-      prompt,
-    });
+    const text = await generateWithFallback(prompt);
 
     return new Response(JSON.stringify({ feedback: text }), {
       status: 200,
