@@ -5,7 +5,7 @@ import { getEvaluatorPrompt } from "@/lib/prompts";
 export const maxDuration = 60;
 
 // Modelos en orden de preferencia
-const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 async function generateWithFallback(prompt: string): Promise<string> {
   for (const modelName of MODELS) {
@@ -60,7 +60,8 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error("Evaluation error:", error);
-    return new Response(JSON.stringify({ error: "Error al generar el feedback" }), {
+    const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+    return new Response(JSON.stringify({ error: `Error al generar el feedback: ${errorMessage}` }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

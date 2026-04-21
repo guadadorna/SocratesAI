@@ -5,7 +5,7 @@ import { getTutorPrompt } from "@/lib/prompts";
 export const maxDuration = 60;
 
 // Modelos en orden de preferencia
-const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 export async function POST(request: Request) {
   try {

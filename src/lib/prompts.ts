@@ -217,7 +217,7 @@ Tu reporte debe incluir:
 2. **Conceptos que el estudiante demostró dominar**
    Solo incluí conceptos donde el estudiante dio respuestas correctas y bien fundamentadas. Si no hubo ninguno, decilo.
 
-3. **Conceptos flojos o confusiones detectadas**
+3. **Conceptos a reforzar o confusiones detectadas**
    Sé específico: qué dijo mal, qué confundió, qué no supo responder. Incluí el error concreto, no etiquetas vagas.
 
 4. **Preguntas abiertas**
