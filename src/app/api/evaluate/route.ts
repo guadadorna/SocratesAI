@@ -10,17 +10,20 @@ const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 async function generateWithFallback(prompt: string): Promise<string> {
   for (const modelName of MODELS) {
     try {
+      console.log(`Trying model: ${modelName}`);
       const { text } = await generateText({
         model: google(modelName),
         prompt,
       });
       return text;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
+      console.log(`Model ${modelName} failed:`, errorMessage);
       const isLastModel = modelName === MODELS[MODELS.length - 1];
       if (isLastModel) {
         throw error;
       }
-      console.log(`Model ${modelName} failed, trying next...`);
+      console.log(`Trying next model...`);
     }
   }
   throw new Error("Todos los modelos fallaron");
