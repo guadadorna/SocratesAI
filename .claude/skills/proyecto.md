@@ -51,7 +51,7 @@ El tutor:
 - `GEMINI_MODEL` - (opcional) modelo a usar, default gemini-2.0-flash
 
 ## URLs
-- **Produccion**: (pendiente de configurar en Vercel)
+- **Produccion**: https://socratesai-two.vercel.app
 - **Repo**: https://github.com/guadadorna/SocratesAI
 
 ---
