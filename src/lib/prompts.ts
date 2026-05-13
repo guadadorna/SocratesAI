@@ -2,11 +2,13 @@ export function getTutorPrompt(params: {
   tiempoTotalMinutos: number;
   contextoAdicional?: string;
   contenidoPdf: string;
+  practiceMode?: boolean;
 }) {
-  const { tiempoTotalMinutos, contextoAdicional, contenidoPdf } = params;
+  const { tiempoTotalMinutos, contextoAdicional, contenidoPdf, practiceMode } = params;
 
-  const conceptosSegunTiempo =
-    tiempoTotalMinutos <= 10
+  const conceptosSegunTiempo = practiceMode
+    ? "5-6 conceptos clave"
+    : tiempoTotalMinutos <= 10
       ? "1-2 conceptos clave"
       : tiempoTotalMinutos <= 20
         ? "3-4 conceptos clave"
@@ -53,7 +55,7 @@ Tu tarea es:
 
 Tu objetivo no es cubrir todo el material, sino evaluar en profundidad conceptos centrales.
 
-Tenés aproximadamente ${tiempoTotalMinutos} minutos de sesión. Calibrá la profundidad según el tiempo disponible.
+${practiceMode ? "Esta sesión no tiene límite de tiempo. Explorá los conceptos con la profundidad que sea necesaria." : `Tenés aproximadamente ${tiempoTotalMinutos} minutos de sesión. Calibrá la profundidad según el tiempo disponible.`}
 
 
 REGLA CRÍTICA: VERIFICAR ANTES DE VALIDAR
@@ -186,8 +188,9 @@ export function getEvaluatorPrompt(params: {
   contenidoPdf: string;
   contextoAdicional?: string;
   tiempoTotalMinutos: number;
+  practiceMode?: boolean;
 }) {
-  const { transcripcion, contenidoPdf, contextoAdicional, tiempoTotalMinutos } = params;
+  const { transcripcion, contenidoPdf, contextoAdicional, tiempoTotalMinutos, practiceMode } = params;
 
   return `Sos un evaluador académico. Tu tarea es analizar la siguiente conversación entre un estudiante y un tutor socrático, y dar un feedback claro y directo sobre el desempeño del estudiante.
 
@@ -198,7 +201,7 @@ ${contenidoPdf}
 
 ${contextoAdicional ? `CONTEXTO ADICIONAL: ${contextoAdicional}` : ""}
 
-DURACIÓN DE LA SESIÓN: ${tiempoTotalMinutos} minutos
+DURACIÓN DE LA SESIÓN: ${practiceMode ? "Sin límite de tiempo (modo práctica)" : `${tiempoTotalMinutos} minutos`}
 
 TRANSCRIPCIÓN DE LA CONVERSACIÓN:
 ---

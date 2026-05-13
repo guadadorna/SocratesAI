@@ -3,6 +3,7 @@ export interface SessionData {
   pdfContent: string;
   pdfName: string;
   timeMinutes: number;
+  practiceMode?: boolean;
   additionalContext?: string;
   startedAt?: number;
   messages: { role: "user" | "assistant"; content: string }[];

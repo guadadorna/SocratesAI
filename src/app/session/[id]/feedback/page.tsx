@@ -37,6 +37,7 @@ export default function FeedbackPage() {
           pdfContent: sessionData.pdfContent,
           timeMinutes: sessionData.timeMinutes,
           additionalContext: sessionData.additionalContext,
+          practiceMode: sessionData.practiceMode,
         }),
       });
 
@@ -94,7 +95,8 @@ export default function FeedbackPage() {
             Feedback de la sesión
           </h2>
           <p className="text-gray-600 mb-6">
-            Material: {session.pdfName} • Duración: {session.timeMinutes} minutos
+            Material: {session.pdfName} •{" "}
+            {session.practiceMode ? "Modo práctica" : `Duración: ${session.timeMinutes} minutos`}
           </p>
 
           {isLoading && (
