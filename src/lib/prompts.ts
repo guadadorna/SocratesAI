@@ -189,8 +189,15 @@ export function getEvaluatorPrompt(params: {
   contextoAdicional?: string;
   tiempoTotalMinutos: number;
   practiceMode?: boolean;
+  actualMinutes?: number | null;
 }) {
-  const { transcripcion, contenidoPdf, contextoAdicional, tiempoTotalMinutos, practiceMode } = params;
+  const { transcripcion, contenidoPdf, contextoAdicional, tiempoTotalMinutos, practiceMode, actualMinutes } = params;
+
+  const durationInfo = practiceMode
+    ? actualMinutes ? `Sin límite (duración real: ${actualMinutes} min)` : "Sin límite de tiempo (modo práctica)"
+    : actualMinutes && actualMinutes !== tiempoTotalMinutos
+      ? `${actualMinutes} min de ${tiempoTotalMinutos} min disponibles`
+      : `${tiempoTotalMinutos} min`;
 
   return `Sos un evaluador académico. Tu tarea es analizar la siguiente conversación entre un estudiante y un tutor socrático, y dar un feedback claro y directo sobre el desempeño del estudiante.
 
@@ -201,7 +208,7 @@ ${contenidoPdf}
 
 ${contextoAdicional ? `CONTEXTO ADICIONAL: ${contextoAdicional}` : ""}
 
-DURACIÓN DE LA SESIÓN: ${practiceMode ? "Sin límite de tiempo (modo práctica)" : `${tiempoTotalMinutos} minutos`}
+DURACIÓN DE LA SESIÓN: ${durationInfo}
 
 TRANSCRIPCIÓN DE LA CONVERSACIÓN:
 ---

@@ -31,7 +31,7 @@ async function generateWithFallback(prompt: string): Promise<string> {
 
 export async function POST(request: Request) {
   try {
-    const { messages, pdfContent, timeMinutes, additionalContext, practiceMode } = await request.json();
+    const { messages, pdfContent, timeMinutes, additionalContext, practiceMode, actualMinutes } = await request.json();
 
     if (!messages || !pdfContent || (!timeMinutes && !practiceMode)) {
       return new Response(JSON.stringify({ error: "Faltan datos para la evaluación" }), {
@@ -54,6 +54,7 @@ export async function POST(request: Request) {
       contextoAdicional: additionalContext,
       tiempoTotalMinutos: timeMinutes ?? 0,
       practiceMode,
+      actualMinutes,
     });
 
     const text = await generateWithFallback(prompt);

@@ -6,6 +6,7 @@ export interface SessionData {
   practiceMode?: boolean;
   additionalContext?: string;
   startedAt?: number;
+  endedAt?: number;
   messages: { role: "user" | "assistant"; content: string }[];
 }
 

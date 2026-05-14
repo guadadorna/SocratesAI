@@ -126,6 +126,7 @@ export default function SessionPage() {
       saveSession({
         ...session,
         messages,
+        endedAt: Date.now(),
       });
     }
     router.push(`/session/${sessionId}/feedback`);

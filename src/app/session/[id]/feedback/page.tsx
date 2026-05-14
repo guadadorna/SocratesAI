@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { getSession, clearSession, SessionData } from "@/lib/session-store";
 
 export default function FeedbackPage() {
@@ -38,6 +39,10 @@ export default function FeedbackPage() {
           timeMinutes: sessionData.timeMinutes,
           additionalContext: sessionData.additionalContext,
           practiceMode: sessionData.practiceMode,
+          actualMinutes:
+            sessionData.startedAt && sessionData.endedAt
+              ? Math.max(1, Math.round((sessionData.endedAt - sessionData.startedAt) / 60000))
+              : null,
         }),
       });
 
@@ -67,6 +72,10 @@ export default function FeedbackPage() {
     router.push("/dashboard");
   };
 
+  const handleDownloadPDF = () => {
+    window.print();
+  };
+
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -75,9 +84,20 @@ export default function FeedbackPage() {
     );
   }
 
+  const actualMinutes =
+    session.startedAt && session.endedAt
+      ? Math.max(1, Math.round((session.endedAt - session.startedAt) / 60000))
+      : null;
+
+  const durationLabel = session.practiceMode
+    ? actualMinutes ? `Modo práctica · ${actualMinutes} min` : "Modo práctica"
+    : actualMinutes && actualMinutes !== session.timeMinutes
+      ? `Duración: ${actualMinutes} / ${session.timeMinutes} min`
+      : `Duración: ${session.timeMinutes} min`;
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-4 py-3">
+      <header className="no-print bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">SocratesAI</h1>
           <button
@@ -95,8 +115,7 @@ export default function FeedbackPage() {
             Feedback de la sesión
           </h2>
           <p className="text-gray-600 mb-6">
-            Material: {session.pdfName} •{" "}
-            {session.practiceMode ? "Modo práctica" : `Duración: ${session.timeMinutes} minutos`}
+            Material: {session.pdfName} · {durationLabel}
           </p>
 
           {isLoading && (
@@ -116,13 +135,25 @@ export default function FeedbackPage() {
 
           {feedback && (
             <div className="space-y-4">
-              <div className="prose prose-gray max-w-none">
-                <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+              <div className="text-gray-700 leading-relaxed space-y-3">
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => <h1 className="text-xl font-bold text-gray-900 mt-6 mb-2">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-lg font-semibold text-gray-900 mt-5 mb-2">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-base font-semibold text-gray-800 mt-4 mb-1">{children}</h3>,
+                    p: ({ children }) => <p className="text-gray-700 leading-relaxed">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                    ul: ({ children }) => <ul className="list-disc list-inside space-y-1 text-gray-700 pl-2">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal list-inside space-y-1 text-gray-700 pl-2">{children}</ol>,
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    hr: () => <hr className="border-gray-200 my-4" />,
+                  }}
+                >
                   {feedback}
-                </div>
+                </ReactMarkdown>
               </div>
 
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className="no-print flex gap-3 pt-4 border-t border-gray-200">
                 <button
                   onClick={handleCopy}
                   className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
@@ -138,6 +169,14 @@ export default function FeedbackPage() {
                       Copiar feedback
                     </>
                   )}
+                </button>
+
+                <button
+                  onClick={handleDownloadPDF}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <DownloadIcon />
+                  Descargar PDF
                 </button>
 
                 <button
@@ -157,7 +196,7 @@ export default function FeedbackPage() {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Transcripción de la sesión
             </h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
+            <div className="space-y-3 max-h-96 overflow-y-auto print-full-height">
               {session.messages
                 .filter((m) => !m.content.includes("[El estudiante acaba de unirse"))
                 .map((message, index) => (
@@ -198,6 +237,14 @@ function CheckIcon() {
   return (
     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
     </svg>
   );
 }
