@@ -9,10 +9,10 @@ const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 export async function POST(request: Request) {
   try {
-    const { messages, pdfContent, timeMinutes, additionalContext, isClosingPhase } =
+    const { messages, pdfContent, timeMinutes, additionalContext, isClosingPhase, practiceMode } =
       await request.json();
 
-    if (!pdfContent || !timeMinutes) {
+    if (!pdfContent || (!timeMinutes && !practiceMode)) {
       return new Response(JSON.stringify({ error: "Faltan datos de la sesión" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },
@@ -20,13 +20,14 @@ export async function POST(request: Request) {
     }
 
     let systemPrompt = getTutorPrompt({
-      tiempoTotalMinutos: timeMinutes,
+      tiempoTotalMinutos: timeMinutes ?? 30,
       contextoAdicional: additionalContext,
       contenidoPdf: pdfContent,
+      practiceMode,
     });
 
-    // Si estamos en fase de cierre, agregar instrucción
-    if (isClosingPhase) {
+    // Si estamos en fase de cierre, agregar instrucción (solo en modo con tiempo)
+    if (isClosingPhase && !practiceMode) {
       systemPrompt += `\n\nIMPORTANTE: Quedan menos de 2 minutos de sesión. Comenzá a cerrar la conversación de forma natural. Hacé una síntesis breve de lo que se trabajó y pedile al estudiante que te cuente en una frase lo más importante que aprendió o se lleva de esta sesión.`;
     }
 

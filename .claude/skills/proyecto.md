@@ -60,11 +60,11 @@ El tutor:
 - [ ] Persistencia de sesiones (base de datos)
 - [ ] Autenticacion de usuarios (profesor vs estudiante)
 - [ ] Historial de sesiones por estudiante
-- [ ] Exportar feedback como PDF
+- [x] Exportar feedback como PDF ✓ (2026-05-13)
+- [x] Modo "practica" sin timer ✓ (2026-05-13)
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
 - [ ] Dashboard con metricas de uso
-- [ ] Modo "practica" sin timer
 
 ---
 
@@ -93,6 +93,25 @@ El tutor:
 **Decisiones de diseno:**
 - Usar 2.5 como principal (mejor razonamiento) con fallback a 2.5-flash-lite
 - El fallback es transparente para el usuario
+
+### 2026-05-13 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Implementado modo "practica" sin temporizador: el usuario puede elegir hacer la sesion sin presion de tiempo
+- Fix de colores en la UI (modo practica vs modo normal)
+- Implementado fallback real para streaming con modelos Gemini (antes el fallback no funcionaba correctamente en streaming)
+- Agregado logging al fallback de evaluate para facilitar debugging
+- Fix del texto de feedback y modelo de fallback
+- Implementada exportacion del feedback como PDF
+- Agregada duracion real de la sesion en el feedback
+- Render de markdown en el feedback (antes se mostraba texto plano con simbolos)
+
+**Problemas encontrados:**
+- El fallback de Gemini no estaba implementado correctamente para streaming, causaba errores silenciosos
+- El feedback mostraba markdown sin renderizar
+
+**Decisiones de diseno:**
+- Modo practica es una opcion al iniciar sesion, no reemplaza el modo con timer
+- La duracion real se calcula desde el inicio hasta el fin de la sesion
 
 ---
 

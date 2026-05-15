@@ -70,6 +70,7 @@ export default function SessionPage() {
           timeMinutes: session.timeMinutes,
           additionalContext: session.additionalContext,
           isClosingPhase,
+          practiceMode: session.practiceMode,
         }),
       });
 
@@ -113,18 +114,19 @@ export default function SessionPage() {
   };
 
   const handleTimeUp = useCallback(() => {
-    setIsTimeUp(true);
-  }, []);
+    if (!session?.practiceMode) setIsTimeUp(true);
+  }, [session?.practiceMode]);
 
   const handleClosingPhase = useCallback(() => {
-    setIsClosingPhase(true);
-  }, []);
+    if (!session?.practiceMode) setIsClosingPhase(true);
+  }, [session?.practiceMode]);
 
   const handleEndSession = () => {
     if (session) {
       saveSession({
         ...session,
         messages,
+        endedAt: Date.now(),
       });
     }
     router.push(`/session/${sessionId}/feedback`);
@@ -163,11 +165,17 @@ export default function SessionPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Timer
-              totalSeconds={session.timeMinutes * 60}
-              onTimeUp={handleTimeUp}
-              onClosingPhase={handleClosingPhase}
-            />
+            {session.practiceMode ? (
+              <span className="text-sm font-medium text-teal-700 bg-teal-50 px-3 py-1 rounded-lg">
+                Modo práctica
+              </span>
+            ) : (
+              <Timer
+                totalSeconds={session.timeMinutes * 60}
+                onTimeUp={handleTimeUp}
+                onClosingPhase={handleClosingPhase}
+              />
+            )}
             <button
               onClick={handleEndSession}
               className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1 rounded-lg hover:bg-gray-100 transition-colors"
@@ -197,7 +205,7 @@ export default function SessionPage() {
               onChange={(e) => setInputValue(e.target.value)}
               placeholder={isTimeUp ? "Tiempo agotado" : "Escribí tu respuesta..."}
               disabled={isTimeUp || isLoading}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-gray-100 disabled:text-gray-500"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
             />
             <button
               type="submit"

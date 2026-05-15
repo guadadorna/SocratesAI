@@ -14,6 +14,7 @@ export default function DashboardPage() {
 
   const [file, setFile] = useState<File | null>(null);
   const [timeMinutes, setTimeMinutes] = useState<number>(15);
+  const [practiceMode, setPracticeMode] = useState(false);
   const [additionalContext, setAdditionalContext] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +80,8 @@ export default function DashboardPage() {
         id: sessionId,
         pdfContent: text,
         pdfName: file.name,
-        timeMinutes,
+        timeMinutes: practiceMode ? 0 : timeMinutes,
+        practiceMode: practiceMode || undefined,
         additionalContext: additionalContext.trim() || undefined,
         messages: [],
       });
@@ -151,14 +153,14 @@ export default function DashboardPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tiempo disponible
             </label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {TIME_OPTIONS.map((minutes) => (
                 <button
                   key={minutes}
                   type="button"
-                  onClick={() => setTimeMinutes(minutes)}
+                  onClick={() => { setTimeMinutes(minutes); setPracticeMode(false); }}
                   className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
-                    timeMinutes === minutes
+                    !practiceMode && timeMinutes === minutes
                       ? "bg-teal-600 text-white"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
@@ -166,7 +168,23 @@ export default function DashboardPage() {
                   {minutes} min
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setPracticeMode(true)}
+                className={`flex-1 py-2 px-3 rounded-lg font-medium transition-colors ${
+                  practiceMode
+                    ? "bg-teal-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
+              >
+                Sin límite
+              </button>
             </div>
+            {practiceMode && (
+              <p className="text-xs text-gray-500 mt-2">
+                Modo práctica: la sesión no tiene tiempo límite ni fase de cierre automática.
+              </p>
+            )}
           </div>
 
           {/* Additional Context */}
@@ -180,7 +198,7 @@ export default function DashboardPage() {
               onChange={(e) => setAdditionalContext(e.target.value)}
               placeholder="Materia, tema específico, información complementaria..."
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none bg-white text-gray-900"
             />
           </div>
 
