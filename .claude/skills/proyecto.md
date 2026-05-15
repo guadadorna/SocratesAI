@@ -37,8 +37,10 @@ El tutor:
 ## Funcionalidades Actuales
 1. **Subir PDF** - El profesor sube material de una unidad
 2. **Sesion de tutoria** - Chat con timer, el tutor hace preguntas socraticas
-3. **Fase de cierre** - Cuando quedan <2 min, el tutor cierra la conversacion
-4. **Feedback/Diagnostico** - Al terminar, genera evaluacion detallada por concepto
+3. **Modo practica** - Sesion sin temporizador, sin presion de tiempo
+4. **Fase de cierre** - Cuando quedan <2 min, el tutor cierra la conversacion
+5. **Feedback/Diagnostico** - Al terminar, genera evaluacion detallada por concepto con duracion real de la sesion
+6. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
 
 ## Limitaciones Conocidas
 - Gemini 2.5 Flash a veces tiene alta demanda (hay fallback a 2.0)
@@ -60,8 +62,6 @@ El tutor:
 - [ ] Persistencia de sesiones (base de datos)
 - [ ] Autenticacion de usuarios (profesor vs estudiante)
 - [ ] Historial de sesiones por estudiante
-- [x] Exportar feedback como PDF ✓ (2026-05-13)
-- [x] Modo "practica" sin timer ✓ (2026-05-13)
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
 - [ ] Dashboard con metricas de uso
