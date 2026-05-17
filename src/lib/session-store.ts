@@ -1,3 +1,9 @@
+export interface Demographic {
+  gender: string;
+  career: string;
+  year: number;
+}
+
 export interface SessionData {
   id: string;
   pdfContent: string;
@@ -8,6 +14,7 @@ export interface SessionData {
   startedAt?: number;
   endedAt?: number;
   messages: { role: "user" | "assistant"; content: string }[];
+  demographic?: Demographic;
 }
 
 const SESSION_KEY = "socrates_session";

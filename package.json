@@ -11,6 +11,7 @@
   "dependencies": {
     "@ai-sdk/google": "^3.0.63",
     "@ai-sdk/react": "^3.0.164",
+    "@supabase/supabase-js": "^2.105.4",
     "ai": "^6.0.162",
     "next": "16.2.3",
     "pdf2json": "^4.0.2",

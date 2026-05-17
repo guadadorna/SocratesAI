@@ -24,9 +24,34 @@ export default function FeedbackPage() {
     }
     setSession(savedSession);
 
+    // Guardar sesión en Supabase (fire-and-forget, no bloquea al usuario)
+    persistSession(savedSession);
+
     // Generar feedback
     generateFeedback(savedSession);
   }, [sessionId, router]);
+
+  const persistSession = (sessionData: SessionData) => {
+    const durationMinutes =
+      sessionData.startedAt && sessionData.endedAt
+        ? Math.max(1, Math.round((sessionData.endedAt - sessionData.startedAt) / 60000))
+        : null;
+
+    fetch("/api/sessions/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: sessionData.id,
+        pdfName: sessionData.pdfName,
+        durationMinutes,
+        mode: sessionData.practiceMode ? "practice" : "normal",
+        messages: sessionData.messages,
+        gender: sessionData.demographic?.gender ?? null,
+        career: sessionData.demographic?.career ?? null,
+        year: sessionData.demographic?.year ?? null,
+      }),
+    }).catch((err) => console.error("[persistSession] Error al guardar:", err));
+  };
 
   const generateFeedback = async (sessionData: SessionData) => {
     try {

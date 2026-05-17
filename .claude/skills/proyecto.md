@@ -36,21 +36,61 @@ El tutor:
 
 ## Funcionalidades Actuales
 1. **Subir PDF** - El profesor sube material de una unidad
-2. **Sesion de tutoria** - Chat con timer, el tutor hace preguntas socraticas
-3. **Modo practica** - Sesion sin temporizador, sin presion de tiempo
-4. **Fase de cierre** - Cuando quedan <2 min, el tutor cierra la conversacion
-5. **Feedback/Diagnostico** - Al terminar, genera evaluacion detallada por concepto con duracion real de la sesion
-6. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
+2. **Formulario de intake** - Antes de la sesion, el alumno elige carrera, año y genero (anonimo, sin nombre)
+3. **Sesion de tutoria** - Chat con timer, el tutor hace preguntas socraticas
+4. **Modo practica** - Sesion sin temporizador, sin presion de tiempo
+5. **Fase de cierre** - Cuando quedan <2 min, el tutor cierra la conversacion
+6. **Feedback/Diagnostico** - Al terminar, genera evaluacion detallada por concepto con duracion real de la sesion
+7. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
+8. **Persistencia de sesiones** - Al terminar, la conversacion se guarda en Supabase (anonimizada con Gemini)
+
+## Anonimizacion (CRITICO)
+- Nunca se guarda nombre, email, legajo ni ningun dato personal
+- Los datos demograficos (genero, carrera, anio) son categoriales, no identificatorios
+- Antes de guardar en Supabase, la conversacion pasa por Gemini flash-lite que reemplaza PII con [DATO_PERSONAL]
+- El ID de sesion es un UUID sin relacion con ningun usuario real
+
+## Stack Tecnico
+- **Framework**: Next.js 16 con App Router
+- **Styling**: Tailwind CSS
+- **AI**: Gemini via Vercel AI SDK (@ai-sdk/google)
+  - Modelo principal: gemini-2.5-flash
+  - Fallback: gemini-2.5-flash-lite
+- **PDF parsing**: pdf2json
+- **Base de datos**: Supabase (PostgreSQL)
+- **Deploy**: Vercel
+- **Repo**: https://github.com/guadadorna/SocratesAI
+
+## Estructura de Archivos Clave
+- `src/app/page.tsx` - Landing/home
+- `src/app/dashboard/page.tsx` - Dashboard del profesor (sube PDF)
+- `src/app/intake/[id]/page.tsx` - Formulario demografico anonimo (nuevo)
+- `src/app/session/[id]/page.tsx` - Sesion de chat con el tutor
+- `src/app/session/[id]/feedback/page.tsx` - Pagina de feedback post-sesion
+- `src/app/api/chat/route.ts` - API del chat (streaming con Gemini)
+- `src/app/api/evaluate/route.ts` - API de evaluacion/feedback final
+- `src/app/api/upload/route.ts` - API para subir PDFs
+- `src/app/api/sessions/save/route.ts` - API para guardar sesion en Supabase (nuevo)
+- `src/lib/prompts.ts` - Prompts del tutor y evaluador
+- `src/lib/session-store.ts` - Almacenamiento de sesiones (localStorage)
+- `src/lib/supabase.ts` - Cliente de Supabase (nuevo)
+- `src/lib/sanitize.ts` - Sanitizacion de PII con Gemini (nuevo)
+- `src/components/ChatWindow.tsx` - Componente del chat
+- `src/components/Timer.tsx` - Timer de la sesion
+
+## Flujo de datos
+Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /feedback (guardar en Supabase + mostrar feedback)
 
 ## Limitaciones Conocidas
-- Gemini 2.5 Flash a veces tiene alta demanda (hay fallback a 2.0)
+- Gemini 2.5 Flash a veces tiene alta demanda (hay fallback a 2.5-flash-lite)
 - El parsing de PDF puede fallar con PDFs complejos o escaneados
-- No hay persistencia de sesiones (se pierden al cerrar)
-- No hay autenticacion de usuarios
+- No hay autenticacion de usuarios (pendiente)
+- El formulario de intake tiene estilo basico, pendiente pulir
 
 ## Variables de Entorno
 - `GOOGLE_GENERATIVE_AI_API_KEY` - API key de Google AI Studio
-- `GEMINI_MODEL` - (opcional) modelo a usar, default gemini-2.0-flash
+- `SUPABASE_URL` - URL del proyecto Supabase
+- `SUPABASE_ANON_KEY` - Clave publica de Supabase
 
 ## URLs
 - **Produccion**: https://socratesai-two.vercel.app
@@ -59,12 +99,14 @@ El tutor:
 ---
 
 ## Pendientes / Ideas Futuras
-- [ ] Persistencia de sesiones (base de datos)
+- [x] Persistencia de sesiones en Supabase ✓ (2026-05-16)
+- [x] Formulario de intake anonimo ✓ (2026-05-16)
+- [ ] Pulir estilos del formulario de intake
+- [ ] Dashboard del profesor con resumen de sesiones
 - [ ] Autenticacion de usuarios (profesor vs estudiante)
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
-- [ ] Dashboard con metricas de uso
 
 ---
 
@@ -114,6 +156,26 @@ El tutor:
 - La duracion real se calcula desde el inicio hasta el fin de la sesion
 
 ---
+
+### 2026-05-16 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Configurado Supabase con tabla `sessions` (gender, career, year, pdf_name, duration_minutes, mode, messages)
+- Creado `src/lib/supabase.ts` - cliente de Supabase
+- Creado `src/lib/sanitize.ts` - sanitizacion de PII con Gemini flash-lite antes de guardar
+- Creado `src/app/api/sessions/save/route.ts` - endpoint que sanitiza y guarda en Supabase
+- Creado `src/app/intake/[id]/page.tsx` - formulario demografico anonimo (carrera, año, genero)
+- Modificado `dashboard/page.tsx` para redirigir a /intake/[id] antes de la sesion
+- Modificado `session-store.ts` para incluir campo `demographic` en SessionData
+- Modificado `feedback/page.tsx` para llamar al endpoint de guardado al terminar
+- Verificado: las sesiones se guardan correctamente en Supabase con datos demograficos
+
+**Filosofia de datos:**
+- Guardar la conversacion cruda (messages) es mas valioso que el feedback (que se puede regenerar)
+- El dashboard del profesor va a generar resumen on-demand a partir de las conversaciones
+
+**Pendiente para proxima sesion:**
+- Pulir estilos del formulario de intake (inconsistencias visuales con el resto de la app)
+- Dashboard del profesor con listado y resumen de sesiones
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:

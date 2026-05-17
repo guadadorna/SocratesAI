@@ -86,7 +86,7 @@ export default function DashboardPage() {
         messages: [],
       });
 
-      router.push(`/session/${sessionId}`);
+      router.push(`/intake/${sessionId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
       setIsLoading(false);
