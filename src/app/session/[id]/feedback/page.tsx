@@ -7,6 +7,35 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { getSession, clearSession, SessionData } from "@/lib/session-store";
 
+function StarRating({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  const [hovered, setHovered] = useState(0);
+  const effective = hovered || value;
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          onClick={() => onChange(n)}
+          onMouseEnter={() => setHovered(n)}
+          onMouseLeave={() => setHovered(0)}
+          className={`text-2xl leading-none transition-colors ${
+            n <= effective ? "text-amber-400" : "text-gray-300"
+          }`}
+        >
+          ★
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function FeedbackPage() {
   const router = useRouter();
   const params = useParams();
@@ -17,6 +46,11 @@ export default function FeedbackPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const [studentRating, setStudentRating] = useState(0);
+  const [studentText, setStudentText] = useState("");
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     const savedSession = getSession();
@@ -93,6 +127,29 @@ export default function FeedbackPage() {
 
   const handleDownloadPDF = () => {
     window.print();
+  };
+
+  const handleStudentFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentRating || isSubmittingFeedback) return;
+    setIsSubmittingFeedback(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "student",
+          sessionId,
+          rating: studentRating,
+          text: studentText.trim() || null,
+        }),
+      });
+    } catch (err) {
+      console.error("[StudentFeedback] Error:", err);
+    } finally {
+      setIsSubmittingFeedback(false);
+      setFeedbackSubmitted(true);
+    }
   };
 
   if (!session) {
@@ -210,6 +267,45 @@ export default function FeedbackPage() {
             </div>
           )}
         </div>
+
+        {/* Student feedback */}
+        {feedback && !isLoading && (
+          <div className="no-print mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+            {feedbackSubmitted ? (
+              <p className="text-sm text-gray-500 text-center py-2">
+                ¡Gracias por tu opinión! Nos ayuda a mejorar.
+              </p>
+            ) : (
+              <form onSubmit={handleStudentFeedback}>
+                <p className="text-sm font-medium text-gray-700 mb-1">
+                  ¿Las preguntas del tutor fueron relevantes y útiles?
+                </p>
+                <p className="text-xs text-gray-400 mb-3">
+                  Opcional — tu opinión nos ayuda a mejorar el tutor.
+                </p>
+                <StarRating value={studentRating} onChange={setStudentRating} />
+                {studentRating > 0 && (
+                  <textarea
+                    value={studentText}
+                    onChange={(e) => setStudentText(e.target.value)}
+                    placeholder="¿Algo que el tutor podría hacer mejor? (opcional)"
+                    rows={2}
+                    className="mt-3 w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none bg-white text-gray-900"
+                  />
+                )}
+                {studentRating > 0 && (
+                  <button
+                    type="submit"
+                    disabled={isSubmittingFeedback}
+                    className="mt-3 px-4 py-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                  >
+                    {isSubmittingFeedback ? "Enviando..." : "Enviar"}
+                  </button>
+                )}
+              </form>
+            )}
+          </div>
+        )}
 
         {/* Session Summary */}
         {session.messages.length > 0 && (

@@ -26,15 +26,17 @@ El tutor:
 - `src/app/dashboard/page.tsx` - Dashboard del alumno (sube PDF, configura sesion)
 - `src/app/intake/[id]/page.tsx` - Formulario demografico anonimo (carrera, año, genero)
 - `src/app/session/[id]/page.tsx` - Sesion de chat con el tutor
-- `src/app/session/[id]/feedback/page.tsx` - Pagina de feedback post-sesion
+- `src/app/session/[id]/feedback/page.tsx` - Pagina de feedback post-sesion (incluye formulario de feedback del alumno)
 - `src/app/profesor/page.tsx` - Dashboard docente (auth por PROFESOR_KEY)
-- `src/app/profesor/ProfesorDashboard.tsx` - UI del dashboard docente (client component)
+- `src/app/profesor/ProfesorDashboard.tsx` - UI del dashboard docente (client component, incluye feedback del profesor y chat de repreguntas)
 - `src/app/api/chat/route.ts` - API del chat (streaming con Gemini)
 - `src/app/api/evaluate/route.ts` - API de evaluacion/feedback final
 - `src/app/api/upload/route.ts` - API para subir PDFs
 - `src/app/api/sessions/save/route.ts` - API para guardar sesion en Supabase
 - `src/app/api/summary/route.ts` - Resumen agregado de sesiones por unidad (con filtros demograficos)
 - `src/app/api/professor/units/route.ts` - Lista de materiales con stats por unidad
+- `src/app/api/professor/chat/route.ts` - Chat de repreguntas del dashboard docente (streaming con Gemini)
+- `src/app/api/feedback/route.ts` - Guarda feedback del alumno (en sessions) y del profesor (en unit_feedback)
 - `src/lib/prompts.ts` - Prompts del tutor y evaluador
 - `src/lib/session-store.ts` - Almacenamiento de sesiones (localStorage)
 - `src/lib/supabase.ts` - Cliente de Supabase
@@ -55,7 +57,8 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 7. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
 8. **Persistencia de sesiones** - Al terminar, la conversacion y el resumen del profesor se guardan en Supabase (conversacion anonimizada con Gemini)
 9. **Render de LaTeX** - Las ecuaciones en el chat, en el feedback y en el dashboard se renderizan correctamente (KaTeX)
-10. **Dashboard docente** - Pagina /profesor con auth por PROFESOR_KEY; muestra materiales con stats demograficos, filtros interactivos por carrera/año/genero, analisis de Gemini contextualizado al subgrupo, y exportacion a PDF
+10. **Dashboard docente** - Pagina /profesor con auth por PROFESOR_KEY; muestra materiales con stats demograficos, filtros interactivos por carrera/año/genero, analisis de Gemini contextualizado al subgrupo, exportacion a PDF, y chat de repreguntas
+11. **Feedback del tutor** - Al terminar la sesion el alumno puede dejar estrellas + texto libre; el profesor puede hacer lo mismo desde el dashboard. Se guarda en Supabase (sessions.student_feedback y tabla unit_feedback). Pendiente: incorporarlo al accionar del agente
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -178,6 +181,38 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - El resumen del profesor se genera junto con el feedback del alumno (misma llamada) y se guarda en Supabase; el dashboard lo lee sin llamar a Gemini
 - El dashboard docente usa una key simple en URL (?key=socratesguada) como auth; no es auth real pero protege de acceso casual
 - Los filtros demograficos del dashboard son optativos: por defecto muestra todas las sesiones
+
+### 2026-05-19 (tercera parte) - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Creado `src/app/api/professor/chat/route.ts` - endpoint POST de streaming para el chat de repreguntas del dashboard docente; usa el mismo patron de fallback que `/api/chat`
+- Modificado `ProfesorDashboard.tsx` para agregar componente `ProfesorChat` al final del analisis: fetch manual + streaming, mensajes con ReactMarkdown + KaTeX, animacion de typing
+- Creado `src/app/api/feedback/route.ts` - endpoint POST que guarda feedback del alumno en `sessions.student_feedback` (JSONB) y feedback del profesor en tabla `unit_feedback`
+- Modificado `feedback/page.tsx` para agregar formulario de feedback del alumno: estrellas 1-5 + textarea condicional, aparece debajo de los botones de accion, fire-and-forget
+- Modificado `ProfesorDashboard.tsx` para agregar formulario de feedback del profesor: estrellas + textarea siempre visible, aparece entre el analisis y el chat de repreguntas, guarda el filterContext activo
+- Agregado `StarRating` como componente inline en ambos archivos
+
+**Problemas encontrados:**
+- `useChat` de `@ai-sdk/react` v3 tiene una API completamente distinta a versiones anteriores (no tiene `input`, `handleInputChange`, `handleSubmit`, `api`); resuelto implementando el streaming con fetch manual igual que el chat del alumno
+- Quota de Gemini agotada durante las pruebas (free tier 20 req/dia); el feedback del alumno no se pudo probar en local, pendiente para manana
+
+**Decisiones de diseno:**
+- El feedback del profesor siempre muestra el textarea (no condicional al rating), porque el texto libre es clave para que el tutor sepa que temas faltan
+- El feedback NO se incorpora al accionar del agente todavia; solo se guarda en Supabase para uso futuro
+- La tabla `unit_feedback` es separada de `sessions` porque el feedback del profesor es sobre el analisis agregado de una unidad, no sobre una sesion especifica
+- El chat de repreguntas tiene `no-print` para no aparecer al exportar PDF
+
+**Cambios en Supabase requeridos (pendiente correr):**
+```sql
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS student_feedback JSONB;
+CREATE TABLE IF NOT EXISTS unit_feedback (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pdf_name TEXT NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  text TEXT,
+  filter_context TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
 ---
 
