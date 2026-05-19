@@ -102,11 +102,17 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 
 ## Pendientes / Ideas Futuras
 - [ ] Pulir estilos del formulario de intake
-- [ ] Dashboard del profesor (frontend que consume /api/summary)
+- [x] Dashboard del profesor (frontend que consume /api/summary)
 - [ ] Autenticacion de usuarios (profesor vs estudiante)
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
+
+## Estructura de Archivos Clave (actualizada)
+- `src/app/profesor/page.tsx` - Dashboard docente (server component con auth por PROFESOR_KEY)
+- `src/app/profesor/ProfesorDashboard.tsx` - UI del dashboard (client component)
+- `src/app/api/professor/units/route.ts` - Lista de materiales con stats por unidad
+- `src/app/api/summary/route.ts` - Ahora acepta filtros `careers`, `years`, `genders` y retorna `demographics`
 
 ---
 
@@ -202,6 +208,32 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - El endpoint /api/summary filtra por `pdf_name` para agrupar sesiones de la misma unidad
 - El tutor NUNCA recibe datos demograficos del alumno (gender, career, year van solo a Supabase)
 - `professor_summary` es TEXT (markdown), no JSONB
+
+### 2026-05-19 (segunda parte) - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Creado `/api/professor/units` - endpoint GET que agrupa sesiones por pdf_name y retorna stats (session_count, careers, years, genders, avg_duration) sin llamar a Gemini
+- Modificado `/api/summary` para aceptar filtros opcionales `careers`, `years`, `genders` (comma-separated query params) y retornar `demographics` en la respuesta
+- Actualizado `getAggregateSummaryPrompt` en `prompts.ts` para recibir `filterContext` opcional y avisarle a Gemini qué subgrupo se está analizando
+- Creado `/profesor/page.tsx` - server component con auth: si `PROFESOR_KEY` está en env, requiere `?key=XXX` en la URL; si no está seteada, permite acceso libre (útil para dev)
+- Creado `/profesor/ProfesorDashboard.tsx` - client component con UI de dos vistas:
+  - Vista de lista: cards por material con distribución de carreras (azul) y años (amarillo)
+  - Vista de análisis: filtros interactivos por carrera/año/género como pills seleccionables, stats rápidas, análisis de Gemini renderizado como markdown
+
+**Lo interesante del dashboard:**
+- Los filtros demográficos permiten comparar subgrupos (ej: "solo 2do año" vs "todos")
+- Cada pill muestra el count de sesiones en ese grupo
+- El análisis de Gemini se contextualiza automáticamente para el subgrupo filtrado
+- Se muestra N sesiones analizadas y duración promedio del subgrupo en el resultado
+
+**Variables de entorno nuevas:**
+- `PROFESOR_KEY` - clave para proteger el dashboard docente (opcional; si no se setea, el dashboard es accesible sin auth)
+
+## Workflow de desarrollo
+- Martina trabaja en la branch `Martina`, no tiene acceso directo al proyecto de Vercel de Guada
+- Para ver cambios en producción: commit → push → PR → merge a main → Vercel hace el deploy automático
+- Las pruebas locales se hacen con `npm run dev` en localhost
+- `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
+- Cuando se pase a producción, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:

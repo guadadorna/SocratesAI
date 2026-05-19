@@ -280,8 +280,9 @@ interface SessionForSummary {
 export function getAggregateSummaryPrompt(params: {
   sessions: SessionForSummary[];
   pdfName: string;
+  filterContext?: string;
 }) {
-  const { sessions, pdfName } = params;
+  const { sessions, pdfName, filterContext } = params;
 
   const sessionBlocks = sessions
     .map((s, i) => {
@@ -299,7 +300,7 @@ export function getAggregateSummaryPrompt(params: {
     })
     .join("\n\n---\n\n");
 
-  return `Tenés los reportes individuales de ${sessions.length} sesión${sessions.length !== 1 ? "es" : ""} de tutoría socrática sobre el material "${pdfName}".
+  return `Tenés los reportes individuales de ${sessions.length} sesión${sessions.length !== 1 ? "es" : ""} de tutoría socrática sobre el material "${pdfName}".${filterContext ? `\n\nSUBGRUPO ANALIZADO: ${filterContext} (el análisis aplica exclusivamente a este subgrupo).` : ""}
 
 REPORTES DE SESIONES:
 ---
