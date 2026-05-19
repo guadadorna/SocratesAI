@@ -7,7 +7,7 @@ const SYSTEM_MESSAGE_MARKER = "[El estudiante acaba de unirse";
 
 export async function POST(request: Request) {
   try {
-    const { id, pdfName, durationMinutes, mode, messages, gender, career, year } =
+    const { id, pdfName, durationMinutes, mode, messages, gender, career, year, professorSummary } =
       await request.json();
 
     if (!id || !messages) {
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
 
     const sanitized = await sanitizeMessages(userMessages);
 
-    const { error } = await supabase.from("sessions").insert({
+    const { error } = await supabase.from("sessions").upsert({
       id,
       pdf_name: pdfName ?? null,
       duration_minutes: durationMinutes ?? null,
@@ -34,6 +34,7 @@ export async function POST(request: Request) {
       gender: gender ?? null,
       career: career ?? null,
       year: year ?? null,
+      professor_summary: professorSummary ?? null,
     });
 
     if (error) {

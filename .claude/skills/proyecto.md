@@ -40,9 +40,11 @@ El tutor:
 3. **Sesion de tutoria** - Chat con timer, el tutor hace preguntas socraticas
 4. **Modo practica** - Sesion sin temporizador, sin presion de tiempo
 5. **Fase de cierre** - Cuando quedan <2 min, el tutor cierra la conversacion
-6. **Feedback/Diagnostico** - Al terminar, genera evaluacion detallada por concepto con duracion real de la sesion
+6. **Feedback diferenciado** - Al terminar, genera un feedback para el alumno (segunda persona, tono cercano) y uno para la docente (tercera persona, formal), en una sola llamada a Gemini separada por delimitador
 7. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
-8. **Persistencia de sesiones** - Al terminar, la conversacion se guarda en Supabase (anonimizada con Gemini)
+8. **Persistencia de sesiones** - Al terminar, la conversacion y el resumen del profesor se guardan en Supabase (conversacion anonimizada con Gemini)
+9. **Render de LaTeX** - Las ecuaciones en el chat y en el feedback se renderizan correctamente (KaTeX)
+10. **Endpoint /api/summary** - Genera un resumen agregado de todas las sesiones de una unidad (filtrado por pdf_name), con diagnostico por tema y desglose demografico (carrera, año, genero)
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -99,10 +101,8 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 ---
 
 ## Pendientes / Ideas Futuras
-- [x] Persistencia de sesiones en Supabase ✓ (2026-05-16)
-- [x] Formulario de intake anonimo ✓ (2026-05-16)
 - [ ] Pulir estilos del formulario de intake
-- [ ] Dashboard del profesor con resumen de sesiones
+- [ ] Dashboard del profesor (frontend que consume /api/summary)
 - [ ] Autenticacion de usuarios (profesor vs estudiante)
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
@@ -176,6 +176,32 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 **Pendiente para proxima sesion:**
 - Pulir estilos del formulario de intake (inconsistencias visuales con el resto de la app)
 - Dashboard del profesor con listado y resumen de sesiones
+
+---
+
+### 2026-05-19 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Agregada columna `professor_summary TEXT` a la tabla `sessions` en Supabase
+- Reemplazados dos prompts separados (alumno/profesor) por `getCombinedEvaluationPrompt` en `prompts.ts`: una sola llamada a Gemini genera ambos textos separados por `===RESUMEN_PROFESOR===`
+- Modificado `evaluate/route.ts` para usar el prompt combinado y separar el output
+- Modificado `feedback/page.tsx` para orquestar: primero genera feedbacks, luego persiste en Supabase con el resumen del profesor
+- Modificado `sessions/save/route.ts`: acepta `professor_summary`, cambiado `insert` por `upsert` para evitar error de clave duplicada al recargar la pagina
+- Creado `src/app/api/summary/route.ts` - endpoint GET /api/summary?pdf=nombre.pdf que lee sesiones de Supabase y genera resumen agregado con desglose demografico
+- Agregado `getAggregateSummaryPrompt` en `prompts.ts`
+- Instalado remark-math, rehype-katex, katex; actualizado `ChatWindow.tsx` y `feedback/page.tsx` para renderizar LaTeX; agregado CSS de KaTeX en `layout.tsx`
+- Revertida instruccion de contexto adicional en el prompt del tutor (causaba comportamiento condescendiente)
+- Actualizado placeholder del campo de contexto adicional en `dashboard/page.tsx`
+
+**Problemas encontrados:**
+- Se agoto la quota del free tier de Gemini (20 req/dia para 2.5-flash) durante pruebas intensivas — el evaluate hacia 2 llamadas en paralelo; resuelto con el prompt combinado
+- Error de clave duplicada en sessions/save al recargar la pagina de feedback — resuelto con upsert
+- La instruccion "empeaza desde los fundamentos si le fue mal" en el prompt del tutor causaba que el tutor cuestionara respuestas correctas — revertida
+
+**Decisiones de diseno:**
+- El resumen del profesor se genera junto con el feedback del alumno (misma llamada, mismo momento) y se guarda en Supabase; el dashboard lo lee directo sin llamar a Gemini
+- El endpoint /api/summary filtra por `pdf_name` para agrupar sesiones de la misma unidad
+- El tutor NUNCA recibe datos demograficos del alumno (gender, career, year van solo a Supabase)
+- `professor_summary` es TEXT (markdown), no JSONB
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:

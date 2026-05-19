@@ -196,7 +196,7 @@ export default function DashboardPage() {
             <textarea
               value={additionalContext}
               onChange={(e) => setAdditionalContext(e.target.value)}
-              placeholder="Materia, tema específico, información complementaria..."
+              placeholder='Materia, tema específico, información complementaria... Ej: "Me cuesta la parte de evaluación de impacto" o "Quiero repasar Marco Lógico para el parcial"'
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none bg-white text-gray-900"
             />

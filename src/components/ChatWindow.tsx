@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 interface Message {
   role: "user" | "assistant";
@@ -33,7 +36,19 @@ export function ChatWindow({ messages, isLoading }: ChatWindowProps) {
                 : "bg-white border border-gray-200 text-gray-800 rounded-bl-md"
             }`}
           >
-            <p className="whitespace-pre-wrap">{message.content}</p>
+            {message.role === "user" ? (
+              <p className="whitespace-pre-wrap">{message.content}</p>
+            ) : (
+              <ReactMarkdown
+                remarkPlugins={[remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  p: ({ children }) => <p className="whitespace-pre-wrap leading-relaxed">{children}</p>,
+                }}
+              >
+                {message.content}
+              </ReactMarkdown>
+            )}
           </div>
         </div>
       ))}

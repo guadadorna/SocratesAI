@@ -183,7 +183,9 @@ RESTRICCIONES
 - Al final recordá brevemente que siempre conviene contrastar lo discutido con el material oficial.`;
 }
 
-export function getEvaluatorPrompt(params: {
+export const EVALUATION_SEPARATOR = "===RESUMEN_PROFESOR===";
+
+export function getCombinedEvaluationPrompt(params: {
   transcripcion: string;
   contenidoPdf: string;
   contextoAdicional?: string;
@@ -199,7 +201,7 @@ export function getEvaluatorPrompt(params: {
       ? `${actualMinutes} min de ${tiempoTotalMinutos} min disponibles`
       : `${tiempoTotalMinutos} min`;
 
-  return `Sos un evaluador académico. Tu tarea es analizar la siguiente conversación entre un estudiante y un tutor socrático, y dar un feedback claro y directo sobre el desempeño del estudiante.
+  return `Analizá la siguiente conversación entre un estudiante y un tutor socrático y generá DOS textos distintos.
 
 MATERIAL DE REFERENCIA:
 ---
@@ -215,30 +217,115 @@ TRANSCRIPCIÓN DE LA CONVERSACIÓN:
 ${transcripcion}
 ---
 
-INSTRUCCIONES:
+---
 
-Analizá la conversación y generá un reporte estructurado. Sé DIRECTO y HONESTO. No seas complaciente ni benevolente. Si el estudiante se equivocó, decilo claramente. Si respondió "no sé" o dio respuestas incorrectas, eso debe reflejarse en el diagnóstico.
+TEXTO 1 — FEEDBACK PARA EL ESTUDIANTE
 
-Tu reporte debe incluir:
+Escribile directamente al estudiante (usá "vos"). Sé DIRECTO y HONESTO. No seas complaciente ni benevolente. Si el estudiante se equivocó, decíselo claramente. Si respondió "no sé" o dio respuestas incorrectas, eso debe reflejarse. Si el desempeño fue pobre, decíselo con respeto pero sin suavizarlo.
 
 1. **Resumen de la sesión** (2-3 oraciones máximo)
-   Qué temas se trabajaron y cuánto se profundizó.
+   Qué temas se trabajaron y cómo te desenvolviste.
 
-2. **Conceptos que el estudiante demostró dominar**
-   Solo incluí conceptos donde el estudiante dio respuestas correctas y bien fundamentadas. Si no hubo ninguno, decilo.
+2. **Conceptos que demostraste dominar**
+   Solo donde diste respuestas correctas y bien fundamentadas. Si no hubo ninguno, decíselo.
 
 3. **Conceptos a reforzar o confusiones detectadas**
-   Sé específico: qué dijo mal, qué confundió, qué no supo responder. Incluí el error concreto, no etiquetas vagas.
+   Sé específico: qué dijiste mal, qué confundiste, qué no supiste responder. El error concreto, no etiquetas vagas.
 
 4. **Preguntas abiertas**
    Temas del material que no se exploraron o quedaron sin cerrar.
 
 5. **Sugerencias de estudio**
-   Qué partes específicas del material debería releer. Sé concreto: mencioná secciones, ejemplos o conceptos puntuales del material proporcionado.
+   Qué partes específicas del material te conviene releer. Sé concreto.
 
-FORMATO:
-- Usá español rioplatense
-- Sé conciso: máximo 2-3 oraciones por punto
-- No uses elogios vacíos ni frases como "buen trabajo" si el desempeño no lo amerita
-- Si el estudiante tuvo un desempeño pobre, decilo con respeto pero sin suavizarlo`;
+Formato: segunda persona del singular (vos), español rioplatense, máximo 2-3 oraciones por punto.
+
+---
+
+${EVALUATION_SEPARATOR}
+
+---
+
+TEXTO 2 — RESUMEN PARA LA DOCENTE
+
+Exactamente el mismo análisis que el Texto 1 pero en tercera persona y tono formal y conciso.
+
+1. **Resumen de la sesión** (2-3 oraciones máximo)
+   Qué temas se trabajaron y cuánto se profundizó.
+
+2. **Conceptos que el estudiante demostró dominar**
+   Solo donde hubo respuestas correctas y bien fundamentadas. Si no hubo ninguno, decilo.
+
+3. **Conceptos a reforzar o confusiones detectadas**
+   Sé específico: qué dijo mal, qué confundió, qué no supo responder. El error concreto, no etiquetas vagas.
+
+4. **Preguntas abiertas**
+   Temas del material que no se exploraron o quedaron sin cerrar.
+
+5. **Sugerencias de estudio**
+   Qué partes específicas del material debería releer. Sé concreto.
+
+Formato: tercera persona, español rioplatense, conciso, máximo 2-3 oraciones por punto.`;
+}
+
+interface SessionForSummary {
+  professor_summary: string;
+  duration_minutes: number | null;
+  mode: string | null;
+  gender: string | null;
+  career: string | null;
+  year: number | null;
+}
+
+export function getAggregateSummaryPrompt(params: {
+  sessions: SessionForSummary[];
+  pdfName: string;
+}) {
+  const { sessions, pdfName } = params;
+
+  const sessionBlocks = sessions
+    .map((s, i) => {
+      const demo = [
+        s.career ? `Carrera: ${s.career}` : null,
+        s.year ? `Año: ${s.year}` : null,
+        s.gender ? `Género: ${s.gender}` : null,
+        s.duration_minutes ? `Duración: ${s.duration_minutes} min` : null,
+        s.mode === "practice" ? "Modo práctica" : null,
+      ]
+        .filter(Boolean)
+        .join(" | ");
+
+      return `[Sesión ${i + 1}]${demo ? ` (${demo})` : ""}\n${s.professor_summary}`;
+    })
+    .join("\n\n---\n\n");
+
+  return `Tenés los reportes individuales de ${sessions.length} sesión${sessions.length !== 1 ? "es" : ""} de tutoría socrática sobre el material "${pdfName}".
+
+REPORTES DE SESIONES:
+---
+${sessionBlocks}
+---
+
+Generá un análisis grupal que incluya:
+
+1. **Panorama general**
+   Cuántas sesiones hubo, duración promedio, distribución de perfiles (carreras, años, géneros si hay variedad).
+
+2. **Temas principales de la unidad** (identificá 4-5)
+   Cuáles fueron los conceptos centrales que se trabajaron en las sesiones.
+
+3. **Diagnóstico de comprensión por tema**
+   Para cada tema: qué tan bien lo entendió el grupo en general, cuáles fueron los errores o confusiones más frecuentes.
+
+4. **Patrones por perfil demográfico**
+   Si hay diferencias notables entre carreras, años o géneros: qué perfiles mostraron mejor comprensión, cuáles tuvieron más dificultades y en qué temas. Si no hay suficientes datos para comparar, indicalo.
+
+5. **Recomendaciones para la próxima clase**
+   Qué temas conviene reforzar, qué tipo de preguntas generaron más confusión.
+
+IMPORTANTE:
+- Nunca menciones ni des pistas sobre el desempeño individual de ningún estudiante.
+- Solo análisis grupal y por perfil demográfico.
+- Usá español rioplatense, tono profesional y directo.
+- Sé concreto: mencioná los conceptos y errores específicos que aparecen en los reportes.`;
 }

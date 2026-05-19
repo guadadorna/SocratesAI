@@ -1,6 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { getEvaluatorPrompt } from "@/lib/prompts";
+import { getCombinedEvaluationPrompt, EVALUATION_SEPARATOR } from "@/lib/prompts";
 
 export const maxDuration = 60;
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       })
       .join("\n\n");
 
-    const prompt = getEvaluatorPrompt({
+    const prompt = getCombinedEvaluationPrompt({
       transcripcion,
       contenidoPdf: pdfContent,
       contextoAdicional: additionalContext,
@@ -57,9 +57,12 @@ export async function POST(request: Request) {
       actualMinutes,
     });
 
-    const text = await generateWithFallback(prompt);
+    const combined = await generateWithFallback(prompt);
+    const parts = combined.split(EVALUATION_SEPARATOR);
+    const studentFeedback = parts[0]?.trim() ?? combined;
+    const professorSummary = parts[1]?.trim() ?? null;
 
-    return new Response(JSON.stringify({ feedback: text }), {
+    return new Response(JSON.stringify({ feedback: studentFeedback, professorSummary }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

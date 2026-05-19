@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import { getSession, clearSession, SessionData } from "@/lib/session-store";
 
 export default function FeedbackPage() {
@@ -23,37 +25,15 @@ export default function FeedbackPage() {
       return;
     }
     setSession(savedSession);
-
-    // Guardar sesión en Supabase (fire-and-forget, no bloquea al usuario)
-    persistSession(savedSession);
-
-    // Generar feedback
-    generateFeedback(savedSession);
+    generateFeedbackAndPersist(savedSession);
   }, [sessionId, router]);
 
-  const persistSession = (sessionData: SessionData) => {
-    const durationMinutes =
+  const generateFeedbackAndPersist = async (sessionData: SessionData) => {
+    const actualMinutes =
       sessionData.startedAt && sessionData.endedAt
         ? Math.max(1, Math.round((sessionData.endedAt - sessionData.startedAt) / 60000))
         : null;
 
-    fetch("/api/sessions/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: sessionData.id,
-        pdfName: sessionData.pdfName,
-        durationMinutes,
-        mode: sessionData.practiceMode ? "practice" : "normal",
-        messages: sessionData.messages,
-        gender: sessionData.demographic?.gender ?? null,
-        career: sessionData.demographic?.career ?? null,
-        year: sessionData.demographic?.year ?? null,
-      }),
-    }).catch((err) => console.error("[persistSession] Error al guardar:", err));
-  };
-
-  const generateFeedback = async (sessionData: SessionData) => {
     try {
       const response = await fetch("/api/evaluate", {
         method: "POST",
@@ -64,10 +44,7 @@ export default function FeedbackPage() {
           timeMinutes: sessionData.timeMinutes,
           additionalContext: sessionData.additionalContext,
           practiceMode: sessionData.practiceMode,
-          actualMinutes:
-            sessionData.startedAt && sessionData.endedAt
-              ? Math.max(1, Math.round((sessionData.endedAt - sessionData.startedAt) / 60000))
-              : null,
+          actualMinutes,
         }),
       });
 
@@ -77,6 +54,23 @@ export default function FeedbackPage() {
 
       const data = await response.json();
       setFeedback(data.feedback);
+
+      // Guardar en Supabase con el resumen del profesor (fire-and-forget)
+      fetch("/api/sessions/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: sessionData.id,
+          pdfName: sessionData.pdfName,
+          durationMinutes: actualMinutes,
+          mode: sessionData.practiceMode ? "practice" : "normal",
+          messages: sessionData.messages,
+          gender: sessionData.demographic?.gender ?? null,
+          career: sessionData.demographic?.career ?? null,
+          year: sessionData.demographic?.year ?? null,
+          professorSummary: data.professorSummary ?? null,
+        }),
+      }).catch((err) => console.error("[persistSession] Error al guardar:", err));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error desconocido");
     } finally {
@@ -162,6 +156,8 @@ export default function FeedbackPage() {
             <div className="space-y-4">
               <div className="text-gray-700 leading-relaxed space-y-3">
                 <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
                   components={{
                     h1: ({ children }) => <h1 className="text-xl font-bold text-gray-900 mt-6 mb-2">{children}</h1>,
                     h2: ({ children }) => <h2 className="text-lg font-semibold text-gray-900 mt-5 mb-2">{children}</h2>,
