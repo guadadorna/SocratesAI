@@ -19,7 +19,7 @@ Al ejecutar este skill, Claude debe actualizar `.claude/skills/proyecto.md` con 
 - [decisiones importantes tomadas, o omitir la seccion si no hubo ninguna]
 ```
 
-3. **Mover pendientes completados**: en la seccion "Pendientes / Ideas Futuras", cambiar `- [ ]` por `- [x]` en los items que se terminaron durante la sesion, agregando `✓ (YYYY-MM-DD)`
+3. **Actualizar pendientes completados**: en la seccion "Pendientes / Ideas Futuras", **eliminar** los items que se terminaron durante la sesion (no tacharlos), y agregar la funcionalidad en la seccion "Funcionalidades Actuales" con una descripcion breve
 
 4. **Agregar nuevos pendientes** que hayan surgido durante la sesion
 
