@@ -203,6 +203,14 @@ export function getCombinedEvaluationPrompt(params: {
 
   return `Analizá la siguiente conversación entre un estudiante y un tutor socrático y generá DOS textos distintos.
 
+INSTRUCCIONES DE FORMATO (obligatorias):
+- Comenzá directamente con el contenido del Texto 1. Sin introducción, sin comentario previo.
+- Separalos con el marcador exacto en su propia línea: ===RESUMEN_PROFESOR===
+- Después del marcador, comenzá directamente con el contenido del Texto 2. Sin aclaración previa.
+- No agregues ningún texto antes del Texto 1 ni después del Texto 2.
+
+
+
 MATERIAL DE REFERENCIA:
 ---
 ${contenidoPdf}
