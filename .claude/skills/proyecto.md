@@ -66,6 +66,15 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - Antes de guardar en Supabase, la conversacion pasa por Gemini flash-lite que reemplaza PII con [DATO_PERSONAL]
 - El ID de sesion es un UUID sin relacion con ningun usuario real
 
+## Seguridad de Supabase
+- RLS esta **deshabilitada** en `sessions` y `unit_feedback` (lo hace explicitamente el SQL del setup)
+- Implicancia: cualquiera con la anon key (que vive en el bundle del cliente y es visible en el browser) puede leer/escribir todas las filas de esas tablas
+- Tradeoff aceptado porque las conversaciones ya estan anonimizadas y los datos demograficos son categoriales — no hay PII expuesta
+- Al crear el proyecto en Supabase se dejaron marcados "Enable Data API" y "Automatically expose new tables", y desmarcado "Enable automatic RLS" (consistente con el SQL que desactiva RLS)
+- Se usa la **anon legacy key** (formato JWT, empieza con `eyJ...`), no las nuevas publishable keys
+- **Service role key** (Settings -> API Keys -> Legacy) nunca se usa en esta app; no agregarla a Vercel ni al codigo
+- Pendiente futuro: si se agrega auth real de usuarios, re-habilitar RLS y escribir policies (alumno solo ve su sesion; dashboard docente lee todo con un rol distinto)
+
 ## Variables de Entorno
 - `GOOGLE_GENERATIVE_AI_API_KEY` - API key de Google AI Studio
 - `SUPABASE_URL` - URL del proyecto Supabase
