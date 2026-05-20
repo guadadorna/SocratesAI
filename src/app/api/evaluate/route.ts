@@ -4,6 +4,12 @@ import { getCombinedEvaluationPrompt, EVALUATION_SEPARATOR } from "@/lib/prompts
 
 export const maxDuration = 60;
 
+// Removes any conversational preamble Gemini adds before the first markdown heading
+function stripPreamble(text: string): string {
+  const idx = text.search(/^#{1,3}\s|\*\*/m);
+  return idx > 0 ? text.slice(idx).trim() : text;
+}
+
 // Modelos en orden de preferencia
 const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
@@ -59,8 +65,8 @@ export async function POST(request: Request) {
 
     const combined = await generateWithFallback(prompt);
     const parts = combined.split(EVALUATION_SEPARATOR);
-    const studentFeedback = parts[0]?.trim() ?? combined;
-    const professorSummary = parts[1]?.trim() ?? null;
+    const studentFeedback = stripPreamble(parts[0]?.trim() ?? combined);
+    const professorSummary = parts[1] ? stripPreamble(parts[1].trim()) : null;
 
     return new Response(JSON.stringify({ feedback: studentFeedback, professorSummary }), {
       status: 200,
