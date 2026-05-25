@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { sanitizeMessages } from "@/lib/sanitize";
+import { sanitizeMessages, normalizePdfName } from "@/lib/sanitize";
 
 export const maxDuration = 60;
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
     const { error } = await supabase.from("sessions").upsert({
       id,
-      pdf_name: pdfName ?? null,
+      pdf_name: pdfName ? normalizePdfName(pdfName) : null,
       duration_minutes: durationMinutes ?? null,
       mode: mode ?? null,
       messages: sanitized,

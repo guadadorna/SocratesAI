@@ -2,6 +2,7 @@ import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { supabase } from "@/lib/supabase";
 import { getAggregateSummaryPrompt } from "@/lib/prompts";
+import { normalizePdfName } from "@/lib/sanitize";
 
 export const maxDuration = 60;
 
@@ -44,11 +45,14 @@ export async function GET(request: Request) {
       : [];
     const genders = gendersParam ? gendersParam.split(",").filter(Boolean) : [];
 
+    const normalizedPdfName = normalizePdfName(pdfName);
+    const baseName = normalizedPdfName.replace(/\.pdf$/i, "");
+
     // eslint-disable-next-line prefer-const
     let query = supabase
       .from("sessions")
       .select("professor_summary, duration_minutes, mode, gender, career, year")
-      .eq("pdf_name", pdfName)
+      .or(`pdf_name.eq.${normalizedPdfName},pdf_name.ilike.${baseName}_%`)
       .not("professor_summary", "is", null);
 
     // Supabase filter builder is chainable — TypeScript infers the type correctly

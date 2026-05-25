@@ -99,6 +99,18 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
 - Cuando se pase a produccion, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
 
+### Flujo correcto de PRs (IMPORTANTE)
+Guada usa **squash-merge** al mergear PRs. Los commits originales de la branch no aparecen en main (se crea un commit nuevo), lo que genera conflictos enormes si se sigue trabajando en la misma branch sin resetearla.
+
+**Despues de cada merge de Guada a main:**
+```
+git fetch origin
+git reset --hard origin/main
+```
+Esto deja la branch `Martina` apuntando exactamente a main, lista para seguir trabajando.
+
+**Nunca hacer** `git pull` a secas (trae `origin/Martina`, no main).
+
 ---
 
 ## Pendientes / Ideas Futuras

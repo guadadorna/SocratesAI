@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { normalizePdfName } from "@/lib/sanitize";
 
 export async function GET() {
   const { data, error } = await supabase
@@ -25,7 +26,7 @@ export async function GET() {
   >();
 
   for (const s of data ?? []) {
-    const key = s.pdf_name ?? "Sin nombre";
+    const key = s.pdf_name ? normalizePdfName(s.pdf_name) : "Sin nombre";
     if (!unitsMap.has(key)) {
       unitsMap.set(key, {
         pdf_name: key,
