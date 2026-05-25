@@ -336,5 +336,6 @@ IMPORTANTE:
 - Nunca menciones ni des pistas sobre el desempeño individual de ningún estudiante.
 - Solo análisis grupal y por perfil demográfico.
 - Usá español rioplatense, tono profesional y directo.
-- Sé concreto: mencioná los conceptos y errores específicos que aparecen en los reportes.`;
+- Sé concreto: mencioná los conceptos y errores específicos que aparecen en los reportes.
+- Inmediatamente antes de la sección 5, escribí en una línea separada exactamente esto (sin espacios extra): ===RECOMENDACIONES===`;
 }

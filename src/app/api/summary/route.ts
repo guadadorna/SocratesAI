@@ -109,10 +109,19 @@ export async function GET(request: Request) {
     const filterContext = filterParts.length > 0 ? filterParts.join(" | ") : undefined;
 
     const prompt = getAggregateSummaryPrompt({ sessions: data, pdfName, filterContext });
-    const summary = await generateWithFallback(prompt);
+    const rawSummary = await generateWithFallback(prompt);
+
+    const DELIMITER = "===RECOMENDACIONES===";
+    const delimIdx = rawSummary.indexOf(DELIMITER);
+    const recommendations = delimIdx !== -1
+      ? rawSummary.slice(delimIdx + DELIMITER.length).trim()
+      : undefined;
+    const summary = delimIdx !== -1
+      ? rawSummary.replace(DELIMITER, "").trim()
+      : rawSummary;
 
     return new Response(
-      JSON.stringify({ summary, sessionCount: data.length, demographics }),
+      JSON.stringify({ summary, recommendations, sessionCount: data.length, demographics }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {

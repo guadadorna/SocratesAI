@@ -23,6 +23,7 @@ interface Demographics {
 
 interface AnalysisResult {
   summary: string;
+  recommendations?: string;
   sessionCount: number;
   demographics: Demographics;
 }
@@ -286,6 +287,7 @@ export function ProfesorDashboard() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [showFullAnalysis, setShowFullAnalysis] = useState(false);
 
   const [activeFilterLabel, setActiveFilterLabel] = useState("");
   const [profRating, setProfRating] = useState(0);
@@ -381,6 +383,7 @@ export function ProfesorDashboard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Error desconocido");
       setAnalysis(data);
+      setShowFullAnalysis(false);
     } catch (e) {
       setAnalysisError(e instanceof Error ? e.message : "Error al generar el análisis");
     } finally {
@@ -605,54 +608,87 @@ export function ProfesorDashboard() {
               )}
             </div>
 
-            {/* Markdown content */}
-            <div className="text-gray-700 leading-relaxed space-y-3">
-              <ReactMarkdown
-                remarkPlugins={[remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  h1: ({ children }) => (
-                    <h1 className="text-xl font-bold text-gray-900 mt-6 mb-2">
-                      {children}
-                    </h1>
-                  ),
-                  h2: ({ children }) => (
-                    <h2 className="text-lg font-semibold text-gray-900 mt-5 mb-2">
-                      {children}
-                    </h2>
-                  ),
-                  h3: ({ children }) => (
-                    <h3 className="text-base font-semibold text-gray-800 mt-4 mb-1">
-                      {children}
-                    </h3>
-                  ),
-                  p: ({ children }) => (
-                    <p className="text-gray-700 leading-relaxed">{children}</p>
-                  ),
-                  strong: ({ children }) => (
-                    <strong className="font-semibold text-gray-900">
-                      {children}
-                    </strong>
-                  ),
-                  ul: ({ children }) => (
-                    <ul className="list-disc list-inside space-y-1 text-gray-700 pl-2">
-                      {children}
-                    </ul>
-                  ),
-                  ol: ({ children }) => (
-                    <ol className="list-decimal list-inside space-y-1 text-gray-700 pl-2">
-                      {children}
-                    </ol>
-                  ),
-                  li: ({ children }) => (
-                    <li className="leading-relaxed">{children}</li>
-                  ),
-                  hr: () => <hr className="border-gray-200 my-4" />,
-                }}
-              >
-                {analysis.summary}
-              </ReactMarkdown>
-            </div>
+            {/* Recomendaciones (action call) — siempre visible primero */}
+            {analysis.recommendations && (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-2">
+                  Recomendaciones para la próxima clase
+                </p>
+                <div className="text-gray-700 leading-relaxed space-y-2">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      p: ({ children }) => <p className="text-gray-700 leading-relaxed">{children}</p>,
+                      strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                      ul: ({ children }) => <ul className="list-disc list-inside space-y-1 text-gray-700 pl-2">{children}</ul>,
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    }}
+                  >
+                    {analysis.recommendations}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            )}
+
+            {/* Botón ver más / ver menos */}
+            <button
+              onClick={() => setShowFullAnalysis((v) => !v)}
+              className="no-print text-sm text-indigo-600 hover:text-indigo-800 font-medium mb-3"
+            >
+              {showFullAnalysis ? "Ocultar análisis completo ↑" : "Ver análisis completo ↓"}
+            </button>
+
+            {/* Análisis completo (colapsable) */}
+            {showFullAnalysis && (
+              <div className="text-gray-700 leading-relaxed space-y-3">
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    h1: ({ children }) => (
+                      <h1 className="text-xl font-bold text-gray-900 mt-6 mb-2">
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className="text-lg font-semibold text-gray-900 mt-5 mb-2">
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="text-base font-semibold text-gray-800 mt-4 mb-1">
+                        {children}
+                      </h3>
+                    ),
+                    p: ({ children }) => (
+                      <p className="text-gray-700 leading-relaxed">{children}</p>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-gray-900">
+                        {children}
+                      </strong>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-inside space-y-1 text-gray-700 pl-2">
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-inside space-y-1 text-gray-700 pl-2">
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => (
+                      <li className="leading-relaxed">{children}</li>
+                    ),
+                    hr: () => <hr className="border-gray-200 my-4" />,
+                  }}
+                >
+                  {analysis.summary}
+                </ReactMarkdown>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="no-print flex items-center gap-3 pt-4 mt-4 border-t border-gray-100">
