@@ -59,6 +59,8 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 9. **Render de LaTeX** - Las ecuaciones en el chat, en el feedback y en el dashboard se renderizan correctamente (KaTeX)
 10. **Dashboard docente** - Pagina /profesor con auth por PROFESOR_KEY; muestra materiales con stats demograficos, filtros interactivos por carrera/año/genero, analisis de Gemini contextualizado al subgrupo, exportacion a PDF, y chat de repreguntas
 11. **Feedback del tutor** - Al terminar la sesion el alumno puede dejar estrellas + texto libre; el profesor puede hacer lo mismo desde el dashboard. Se guarda en Supabase (sessions.student_feedback y tabla unit_feedback). Pendiente: incorporarlo al accionar del agente
+12. **Normalizacion de nombres de PDF** - Los PDFs descargados del campus tienen sufijos de hash MD5 (ej: "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"). La funcion normalizePdfName() los stripea al guardar y al agrupar sesiones, para que no queden separadas como materiales distintos.
+13. **Recomendaciones primero en dashboard docente** - El analisis del profesor muestra el action call (recomendaciones para la proxima clase) en un box ambar destacado al tope. Un boton "Ver analisis completo" expande el detalle completo.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -98,6 +100,19 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - Las pruebas locales se hacen con `npm run dev` en localhost
 - `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
 - Cuando se pase a produccion, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
+
+### Flujo correcto de PRs (IMPORTANTE)
+Guada usa **squash-merge** al mergear PRs. Los commits originales de la branch no aparecen en main (se crea un commit nuevo), lo que genera conflictos enormes si se sigue trabajando en la misma branch sin resetearla.
+
+**Despues de cada merge de Guada a main:**
+```
+git fetch origin
+git reset --hard origin/main
+git push origin Martina --force
+```
+Los tres comandos son necesarios: los primeros dos sincronizan la branch local, el tercero sincroniza la remota. Sin el tercero, la proxima vez que hagas push va a rechazarlo por divergencia.
+
+**Nunca hacer** `git pull` a secas (trae `origin/Martina`, no main).
 
 ---
 
@@ -222,6 +237,18 @@ CREATE TABLE IF NOT EXISTS unit_feedback (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
+
+### 2026-05-25 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Implementada normalizacion de nombres de PDF con sufijos de campus: nueva funcion `normalizePdfName()` en `src/lib/sanitize.ts`, aplicada en `sessions/save/route.ts` (al guardar), `professor/units/route.ts` (al agrupar) y `summary/route.ts` (al consultar con `.or()`)
+- Implementado "recomendaciones primero" en dashboard docente: el prompt de `getAggregateSummaryPrompt` en `src/lib/prompts.ts` ahora incluye delimitador `===RECOMENDACIONES===`; `summary/route.ts` lo parsea y devuelve `recommendations` separado; `ProfesorDashboard.tsx` muestra las recomendaciones en un box ambar al tope con boton "Ver analisis completo" para expandir el detalle
+
+**Problemas encontrados:**
+- El regex inicial para normalizar PDF (`\s+[a-zA-Z0-9]{4,}\.pdf$`) era incorrecto: el campus usa guiones bajos y hashes MD5 de 32 chars (`_d19b4f2c630efc14e314c67a4af05c76_f69d728c1c5ad026c9e479f609adf56d.pdf`), no espacios ni cadenas cortas. Corregido con `(_[0-9a-f]{16,})+\.pdf$/i`
+
+**Decisiones de diseno:**
+- En `summary/route.ts` el filtro de Supabase usa `.or()` combinando igualdad exacta (nombre normalizado) e ILIKE (patron con sufijo de campus), para capturar sesiones historicas guardadas con nombre sin normalizar
+- Las recomendaciones se extraen del texto completo pero `summary` conserva el texto completo limpio (sin el delimitador); el frontend muestra ambos sin duplicar llamadas a Gemini
 
 ---
 
