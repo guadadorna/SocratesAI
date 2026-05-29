@@ -33,9 +33,11 @@ ${JSON.stringify(messages)}`;
   }
 }
 
-// Strips campus-download suffixes from PDF filenames.
-// "7. Dif in Dif_d19b4f2c630efc14e314c67a4af05c76_f69d728c1c5ad026c9e479f609adf56d.pdf"
-// → "7. Dif in Dif.pdf"
+// Strips campus-download and OS-duplicate suffixes from PDF filenames.
+// "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"  → "7. Dif in Dif.pdf"
+// "resumen_42ea3007... 2.pdf"                   → "resumen.pdf"
+// "resumen (1).pdf"                             → "resumen.pdf"
 export function normalizePdfName(filename: string): string {
-  return filename.replace(/(_[0-9a-f]{16,})+\.pdf$/i, ".pdf");
+  return filename
+    .replace(/(?:(_[0-9a-f]{16,})+(?: \d+)?| \(\d+\))\.pdf$/i, ".pdf");
 }
