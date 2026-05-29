@@ -250,6 +250,16 @@ CREATE TABLE IF NOT EXISTS unit_feedback (
 - En `summary/route.ts` el filtro de Supabase usa `.or()` combinando igualdad exacta (nombre normalizado) e ILIKE (patron con sufijo de campus), para capturar sesiones historicas guardadas con nombre sin normalizar
 - Las recomendaciones se extraen del texto completo pero `summary` conserva el texto completo limpio (sin el delimitador); el frontend muestra ambos sin duplicar llamadas a Gemini
 
+### 2026-05-28 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Extendida `normalizePdfName()` en `src/lib/sanitize.ts` para cubrir dos patrones adicionales que el regex anterior no manejaba:
+  - `_hash 2.pdf` — Windows agrega un contador numerico cuando se descarga el mismo archivo dos veces (`_d19b4f2c... 2.pdf`)
+  - ` (1).pdf` — sufijo de duplicado que agrega el sistema operativo (`resumen (1).pdf`)
+- Regex actualizado de `(_[0-9a-f]{16,})+\.pdf$/i` a `(?:(_[0-9a-f]{16,})+(?: \d+)?| \(\d+\))\.pdf$/i`
+
+**Problemas encontrados:**
+- Ninguno
+
 ---
 
 ## Instrucciones para Claude
