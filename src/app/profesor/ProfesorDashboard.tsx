@@ -343,7 +343,12 @@ export function ProfesorDashboard() {
     }
   };
 
-  const handleGenerateAnalysis = async () => {
+  useEffect(() => {
+    if (selectedUnit) handleGenerateAnalysis();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedUnit]);
+
+  const handleGenerateAnalysis = async (regenerate = false) => {
     if (!selectedUnit) return;
     setLoadingAnalysis(true);
     setAnalysisError(null);
@@ -353,6 +358,7 @@ export function ProfesorDashboard() {
     setProfFeedbackSubmitted(false);
 
     const params = new URLSearchParams({ pdf: selectedUnit.pdf_name });
+    if (regenerate) params.set("regenerate", "true");
 
     const allCareers = Object.keys(selectedUnit.careers);
     const allYears = Object.keys(selectedUnit.years);
@@ -543,19 +549,6 @@ export function ProfesorDashboard() {
           </div>
         )}
 
-        {/* Generate button */}
-        <button
-          onClick={handleGenerateAnalysis}
-          disabled={loadingAnalysis}
-          className={`no-print w-full py-3 px-4 rounded-lg font-semibold text-white transition-colors mb-6 ${
-            loadingAnalysis
-              ? "bg-gray-300 cursor-not-allowed"
-              : "bg-teal-600 hover:bg-teal-700"
-          }`}
-        >
-          {loadingAnalysis ? "Analizando sesiones..." : "Generar análisis"}
-        </button>
-
         {/* Loading indicator */}
         {loadingAnalysis && (
           <div className="flex items-center justify-center py-12">
@@ -702,7 +695,7 @@ export function ProfesorDashboard() {
                 Descargar PDF
               </button>
               <button
-                onClick={handleGenerateAnalysis}
+                onClick={() => handleGenerateAnalysis(true)}
                 className="text-sm text-teal-600 hover:text-teal-700 font-medium"
               >
                 Regenerar

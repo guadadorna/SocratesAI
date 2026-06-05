@@ -61,6 +61,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 11. **Feedback del tutor** - Al terminar la sesion el alumno puede dejar estrellas + texto libre; el profesor puede hacer lo mismo desde el dashboard. Se guarda en Supabase (sessions.student_feedback y tabla unit_feedback). Pendiente: incorporarlo al accionar del agente
 12. **Normalizacion de nombres de PDF** - Los PDFs descargados del campus tienen sufijos de hash MD5 (ej: "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"). La funcion normalizePdfName() los stripea al guardar y al agrupar sesiones, para que no queden separadas como materiales distintos.
 13. **Recomendaciones primero en dashboard docente** - El analisis del profesor muestra el action call (recomendaciones para la proxima clase) en un box ambar destacado al tope. Un boton "Ver analisis completo" expande el detalle completo.
+14. **Cache de analisis del dashboard docente** - El analisis generado por Gemini se guarda en la tabla `unit_analysis` (pdf_name + filter_key). Al seleccionar una unidad, el analisis se carga automaticamente: si ya existe en cache, aparece instantaneamente; si no, llama a Gemini (~30 seg) y lo guarda. El boton "Regenerar" fuerza una nueva llamada a Gemini y sobreescribe el cache.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -69,7 +70,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - El ID de sesion es un UUID sin relacion con ningun usuario real
 
 ## Seguridad de Supabase
-- RLS esta **deshabilitada** en `sessions` y `unit_feedback` (lo hace explicitamente el SQL del setup)
+- RLS esta **deshabilitada** en `sessions`, `unit_feedback` y `unit_analysis` (lo hace explicitamente el SQL del setup)
 - Implicancia: cualquiera con la anon key (que vive en el bundle del cliente y es visible en el browser) puede leer/escribir todas las filas de esas tablas
 - Tradeoff aceptado porque las conversaciones ya estan anonimizadas y los datos demograficos son categoriales — no hay PII expuesta
 - Al crear el proyecto en Supabase se dejaron marcados "Enable Data API" y "Automatically expose new tables", y desmarcado "Enable automatic RLS" (consistente con el SQL que desactiva RLS)
@@ -259,6 +260,37 @@ CREATE TABLE IF NOT EXISTS unit_feedback (
 
 **Problemas encontrados:**
 - Ninguno
+
+### 2026-06-05 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Implementado cache de analisis del dashboard docente en nueva tabla Supabase `unit_analysis`
+- Modificado `src/app/api/summary/route.ts`: agrega `buildFilterKey()` para construir clave de cache (ej: `"all"` o `"careers:ISI|years:1,2"`); al inicio del handler busca en `unit_analysis` por `(pdf_name, filter_key)` y devuelve el cache si existe; despues de llamar a Gemini hace upsert en `unit_analysis`; parametro `?regenerate=true` fuerza nueva llamada
+- Modificado `src/app/profesor/ProfesorDashboard.tsx`: eliminado boton "Generar analisis"; agregado `useEffect` que auto-dispara el analisis al seleccionar unidad; boton "Regenerar" pasa `true` al handler para forzar `?regenerate=true`
+
+**Problemas encontrados:**
+- La respuesta del cache devolveria `session_count` (columna Supabase) en vez de `sessionCount` (lo que espera el frontend) — corregido mapeando el campo al devolver el cache
+
+**Decisiones de diseno:**
+- El cache es por `(pdf_name, filter_key)`: `filter_key` es un string determinístico de los filtros activos, `"all"` cuando no hay filtros. UNIQUE constraint permite upsert limpio.
+- El analisis cacheado persiste entre sesiones del browser (en Supabase, no en localStorage)
+- Al cambiar filtros, el usuario usa "Regenerar" para generar el analisis filtrado; no hay auto-regeneracion en cada toggle de pill (evita llamadas excesivas a Gemini)
+
+**Cambios en Supabase requeridos:**
+```sql
+CREATE TABLE IF NOT EXISTS unit_analysis (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pdf_name TEXT NOT NULL,
+  filter_key TEXT NOT NULL DEFAULT 'all',
+  summary TEXT NOT NULL,
+  recommendations TEXT,
+  session_count INTEGER,
+  demographics JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(pdf_name, filter_key)
+);
+ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
+```
 
 ---
 
