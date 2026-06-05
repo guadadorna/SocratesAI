@@ -292,6 +292,24 @@ CREATE TABLE IF NOT EXISTS unit_analysis (
 ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 ```
 
+### 2026-06-05 (segunda parte) - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Fix del bug "tutor se frena": el tutor decia "claro!" y no continuaba; el alumno tenia que mandar otro mensaje para que siguiera
+- Modificado `src/lib/prompts.ts` — tres cambios quirurgicos en `getTutorPrompt`:
+  1. **EXTENSION DE LAS RESPUESTAS**: extendido limite a 5-6 oraciones cuando incluye explicacion; agregada regla explicita de que todo turno debe terminar con pregunta (salvo cierre), y que la pregunta final no cuenta para el limite
+  2. **Si el estudiante responde bien**: ultimo bullet cambiado de "despues profundiza" (ambiguo) a "despues hace la siguiente pregunta... ese turno no puede terminar sin preguntar" (explicito)
+  3. **Desarrollo**: corregido "3-4 preguntas" a "2-3 preguntas; la regla de avance tiene prioridad" para consistencia con REGLA DE AVANCE
+
+**Causa del bug:**
+- La instruccion de explicar en 2-3 oraciones competia con el limite de 2-4 oraciones por turno
+- El modelo usaba todo el presupuesto en la explicacion y no le quedaba lugar para la pregunta siguiente
+- Solucion: extender el limite + regla explicita de que la pregunta no cuenta para el limite
+
+**Decisiones de diseno:**
+- Se mantuvo la instruccion de explicar (Guada y Martina no querian sacarla)
+- La excepcion "salvo durante la fase de cierre" preserva el comportamiento de recap al final de sesion
+- No se toco ninguna instruccion sobre como o cuando explica el tutor
+
 ---
 
 ## Instrucciones para Claude
