@@ -24,6 +24,14 @@ async function generateWithFallback(prompt: string): Promise<string> {
   throw new Error("Todos los modelos fallaron");
 }
 
+function buildFilterKey(careers: string[], years: number[], genders: string[]): string {
+  const parts: string[] = [];
+  if (careers.length > 0) parts.push(`careers:${[...careers].sort().join(",")}`);
+  if (years.length > 0) parts.push(`years:${[...years].sort((a, b) => a - b).join(",")}`);
+  if (genders.length > 0) parts.push(`genders:${[...genders].sort().join(",")}`);
+  return parts.length ? parts.join("|") : "all";
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -31,6 +39,7 @@ export async function GET(request: Request) {
     const careersParam = searchParams.get("careers");
     const yearsParam = searchParams.get("years");
     const gendersParam = searchParams.get("genders");
+    const regenerate = searchParams.get("regenerate") === "true";
 
     if (!pdfName) {
       return new Response(JSON.stringify({ error: "Falta el parámetro pdf" }), {
@@ -47,6 +56,28 @@ export async function GET(request: Request) {
 
     const normalizedPdfName = normalizePdfName(pdfName);
     const baseName = normalizedPdfName.replace(/\.pdf$/i, "");
+    const filterKey = buildFilterKey(careers, years, genders);
+
+    // Servir desde caché si existe y no se pidió regenerar
+    if (!regenerate) {
+      const { data: cached } = await supabase
+        .from("unit_analysis")
+        .select("summary, recommendations, session_count, demographics")
+        .eq("pdf_name", normalizedPdfName)
+        .eq("filter_key", filterKey)
+        .single();
+      if (cached) {
+        return new Response(
+          JSON.stringify({
+            summary: cached.summary,
+            recommendations: cached.recommendations,
+            sessionCount: cached.session_count,
+            demographics: cached.demographics,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+    }
 
     // eslint-disable-next-line prefer-const
     let query = supabase
@@ -119,6 +150,20 @@ export async function GET(request: Request) {
     const summary = delimIdx !== -1
       ? rawSummary.replace(DELIMITER, "").trim()
       : rawSummary;
+
+    // Guardar en caché para futuras visitas
+    await supabase.from("unit_analysis").upsert(
+      {
+        pdf_name: normalizedPdfName,
+        filter_key: filterKey,
+        summary,
+        recommendations: recommendations ?? null,
+        session_count: data.length,
+        demographics,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "pdf_name,filter_key" }
+    );
 
     return new Response(
       JSON.stringify({ summary, recommendations, sessionCount: data.length, demographics }),

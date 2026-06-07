@@ -61,6 +61,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 11. **Feedback del tutor** - Al terminar la sesion el alumno puede dejar estrellas + texto libre; el profesor puede hacer lo mismo desde el dashboard. Se guarda en Supabase (sessions.student_feedback y tabla unit_feedback). Pendiente: incorporarlo al accionar del agente
 12. **Normalizacion de nombres de PDF** - Los PDFs descargados del campus tienen sufijos de hash MD5 (ej: "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"). La funcion normalizePdfName() los stripea al guardar y al agrupar sesiones, para que no queden separadas como materiales distintos.
 13. **Recomendaciones primero en dashboard docente** - El analisis del profesor muestra el action call (recomendaciones para la proxima clase) en un box ambar destacado al tope. Un boton "Ver analisis completo" expande el detalle completo.
+14. **Cache de analisis del dashboard docente** - El analisis generado por Gemini se guarda en la tabla `unit_analysis` (pdf_name + filter_key). Al seleccionar una unidad, el analisis se carga automaticamente: si ya existe en cache, aparece instantaneamente; si no, llama a Gemini (~30 seg) y lo guarda. El boton "Regenerar" fuerza una nueva llamada a Gemini y sobreescribe el cache.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -69,7 +70,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - El ID de sesion es un UUID sin relacion con ningun usuario real
 
 ## Seguridad de Supabase
-- RLS esta **deshabilitada** en `sessions` y `unit_feedback` (lo hace explicitamente el SQL del setup)
+- RLS esta **deshabilitada** en `sessions`, `unit_feedback` y `unit_analysis` (lo hace explicitamente el SQL del setup)
 - Implicancia: cualquiera con la anon key (que vive en el bundle del cliente y es visible en el browser) puede leer/escribir todas las filas de esas tablas
 - Tradeoff aceptado porque las conversaciones ya estan anonimizadas y los datos demograficos son categoriales — no hay PII expuesta
 - Al crear el proyecto en Supabase se dejaron marcados "Enable Data API" y "Automatically expose new tables", y desmarcado "Enable automatic RLS" (consistente con el SQL que desactiva RLS)
@@ -97,6 +98,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 ## Workflow de desarrollo
 - Martina trabaja en la branch `Martina`, no tiene acceso directo al proyecto de Vercel de Guada
 - Para ver cambios en produccion: commit → push → PR → merge a main → Vercel hace el deploy automatico
+- **Preview URL (pendiente)**: Vercel genera automaticamente una URL de preview para la branch `Martina` en el proyecto de Guada. Guada tiene que ir a Deployments → buscar el deploy de la branch Martina → compartir la URL (algo como `socratesai-git-martina-guadadorna.vercel.app`). Una vez obtenida, Martina puede ver sus cambios sin esperar el merge.
 - Las pruebas locales se hacen con `npm run dev` en localhost
 - `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
 - Cuando se pase a produccion, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
@@ -122,6 +124,8 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
+- [ ] Conseguir URL de preview de Vercel de Guada (ver instrucciones en Workflow de desarrollo) para que Martina pueda ver sus cambios sin esperar el merge
+- [ ] Incorporar feedback del alumno y del profesor al accionar del agente tutor
 
 ---
 
@@ -249,6 +253,65 @@ CREATE TABLE IF NOT EXISTS unit_feedback (
 **Decisiones de diseno:**
 - En `summary/route.ts` el filtro de Supabase usa `.or()` combinando igualdad exacta (nombre normalizado) e ILIKE (patron con sufijo de campus), para capturar sesiones historicas guardadas con nombre sin normalizar
 - Las recomendaciones se extraen del texto completo pero `summary` conserva el texto completo limpio (sin el delimitador); el frontend muestra ambos sin duplicar llamadas a Gemini
+
+### 2026-05-28 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Extendida `normalizePdfName()` en `src/lib/sanitize.ts` para cubrir dos patrones adicionales que el regex anterior no manejaba:
+  - `_hash 2.pdf` — Windows agrega un contador numerico cuando se descarga el mismo archivo dos veces (`_d19b4f2c... 2.pdf`)
+  - ` (1).pdf` — sufijo de duplicado que agrega el sistema operativo (`resumen (1).pdf`)
+- Regex actualizado de `(_[0-9a-f]{16,})+\.pdf$/i` a `(?:(_[0-9a-f]{16,})+(?: \d+)?| \(\d+\))\.pdf$/i`
+
+**Problemas encontrados:**
+- Ninguno
+
+### 2026-06-05 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Implementado cache de analisis del dashboard docente en nueva tabla Supabase `unit_analysis`
+- Modificado `src/app/api/summary/route.ts`: agrega `buildFilterKey()` para construir clave de cache (ej: `"all"` o `"careers:ISI|years:1,2"`); al inicio del handler busca en `unit_analysis` por `(pdf_name, filter_key)` y devuelve el cache si existe; despues de llamar a Gemini hace upsert en `unit_analysis`; parametro `?regenerate=true` fuerza nueva llamada
+- Modificado `src/app/profesor/ProfesorDashboard.tsx`: eliminado boton "Generar analisis"; agregado `useEffect` que auto-dispara el analisis al seleccionar unidad; boton "Regenerar" pasa `true` al handler para forzar `?regenerate=true`
+
+**Problemas encontrados:**
+- La respuesta del cache devolveria `session_count` (columna Supabase) en vez de `sessionCount` (lo que espera el frontend) — corregido mapeando el campo al devolver el cache
+
+**Decisiones de diseno:**
+- El cache es por `(pdf_name, filter_key)`: `filter_key` es un string determinístico de los filtros activos, `"all"` cuando no hay filtros. UNIQUE constraint permite upsert limpio.
+- El analisis cacheado persiste entre sesiones del browser (en Supabase, no en localStorage)
+- Al cambiar filtros, el usuario usa "Regenerar" para generar el analisis filtrado; no hay auto-regeneracion en cada toggle de pill (evita llamadas excesivas a Gemini)
+
+**Cambios en Supabase requeridos:**
+```sql
+CREATE TABLE IF NOT EXISTS unit_analysis (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  pdf_name TEXT NOT NULL,
+  filter_key TEXT NOT NULL DEFAULT 'all',
+  summary TEXT NOT NULL,
+  recommendations TEXT,
+  session_count INTEGER,
+  demographics JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(pdf_name, filter_key)
+);
+ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
+```
+
+### 2026-06-05 (segunda parte) - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Fix del bug "tutor se frena": el tutor decia "claro!" y no continuaba; el alumno tenia que mandar otro mensaje para que siguiera
+- Modificado `src/lib/prompts.ts` — tres cambios quirurgicos en `getTutorPrompt`:
+  1. **EXTENSION DE LAS RESPUESTAS**: extendido limite a 5-6 oraciones cuando incluye explicacion; agregada regla explicita de que todo turno debe terminar con pregunta (salvo cierre), y que la pregunta final no cuenta para el limite
+  2. **Si el estudiante responde bien**: ultimo bullet cambiado de "despues profundiza" (ambiguo) a "despues hace la siguiente pregunta... ese turno no puede terminar sin preguntar" (explicito)
+  3. **Desarrollo**: corregido "3-4 preguntas" a "2-3 preguntas; la regla de avance tiene prioridad" para consistencia con REGLA DE AVANCE
+
+**Causa del bug:**
+- La instruccion de explicar en 2-3 oraciones competia con el limite de 2-4 oraciones por turno
+- El modelo usaba todo el presupuesto en la explicacion y no le quedaba lugar para la pregunta siguiente
+- Solucion: extender el limite + regla explicita de que la pregunta no cuenta para el limite
+
+**Decisiones de diseno:**
+- Se mantuvo la instruccion de explicar (Guada y Martina no querian sacarla)
+- La excepcion "salvo durante la fase de cierre" preserva el comportamiento de recap al final de sesion
+- No se toco ninguna instruccion sobre como o cuando explica el tutor
 
 ---
 
