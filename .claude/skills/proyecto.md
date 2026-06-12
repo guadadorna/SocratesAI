@@ -98,7 +98,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 ## Workflow de desarrollo
 - Martina trabaja en la branch `Martina`, no tiene acceso directo al proyecto de Vercel de Guada
 - Para ver cambios en produccion: commit → push → PR → merge a main → Vercel hace el deploy automatico
-- **Preview URL (pendiente)**: Vercel genera automaticamente una URL de preview para la branch `Martina` en el proyecto de Guada. Guada tiene que ir a Deployments → buscar el deploy de la branch Martina → compartir la URL (algo como `socratesai-git-martina-guadadorna.vercel.app`). Una vez obtenida, Martina puede ver sus cambios sin esperar el merge.
+- **Preview URL**: Vercel genera automaticamente una URL de preview para la branch `Martina` en el proyecto de Guada con cada push. Guada le paso la URL a Martina, asi que Martina puede ver sus cambios en cada push sin esperar el merge a main.
 - Las pruebas locales se hacen con `npm run dev` en localhost
 - `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
 - Cuando se pase a produccion, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
@@ -124,7 +124,6 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
-- [ ] Conseguir URL de preview de Vercel de Guada (ver instrucciones en Workflow de desarrollo) para que Martina pueda ver sus cambios sin esperar el merge
 - [ ] Incorporar feedback del alumno y del profesor al accionar del agente tutor
 
 ---
