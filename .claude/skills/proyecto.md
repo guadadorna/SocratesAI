@@ -109,8 +109,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 - Para ver cambios en produccion: commit → push → PR → merge a main → Vercel hace el deploy automatico
 - **Preview URL**: Vercel genera automaticamente una URL de preview para la branch `Martina` en el proyecto de Guada con cada push. Guada le paso la URL a Martina, asi que Martina puede ver sus cambios en cada push sin esperar el merge a main.
 - Las pruebas locales se hacen con `npm run dev` en localhost
-- `.env.local` tiene las variables de entorno para desarrollo local (incluyendo `PROFESOR_KEY=socratesguada`)
-- Cuando se pase a produccion, Guada tiene que agregar `PROFESOR_KEY` en las variables de entorno de Vercel
+- `.env.local` tiene las variables de entorno para desarrollo local (`GOOGLE_GENERATIVE_AI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL=http://localhost:3000`)
 
 ### Flujo correcto de PRs (IMPORTANTE)
 Guada usa **squash-merge** al mergear PRs. Los commits originales de la branch no aparecen en main (se crea un commit nuevo), lo que genera conflictos enormes si se sigue trabajando en la misma branch sin resetearla.
@@ -129,11 +128,11 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 
 ## Pendientes / Ideas Futuras
 - [ ] Pulir estilos del formulario de intake
-- [ ] Multi-profesor: vincular sesiones a un profesor especifico (profesor_id en sessions, link unico por profesor para compartir con alumnos)
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
-- [ ] Permitir multiples unidades/materias
 - [ ] Incorporar feedback del alumno y del profesor al accionar del agente tutor
+- [ ] Agregar professor_id al cache de unit_analysis (hoy el cache es global por pdf_name+filter_key; si hay multiples profes con el mismo PDF, comparten cache)
+- [ ] Probar flujo completo del alumno via /s/[subject_id] en produccion (pendiente que Guada actualice Vercel)
 
 ---
 
