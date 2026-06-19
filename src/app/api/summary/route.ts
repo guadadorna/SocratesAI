@@ -1,6 +1,7 @@
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAggregateSummaryPrompt } from "@/lib/prompts";
 import { normalizePdfName } from "@/lib/sanitize";
 
@@ -34,6 +35,10 @@ function buildFilterKey(careers: string[], years: number[], genders: string[]): 
 
 export async function GET(request: Request) {
   try {
+    const serverSupabase = await createSupabaseServerClient();
+    const { data: userData } = await serverSupabase.auth.getUser();
+    const userId = userData.user?.id;
+
     const { searchParams } = new URL(request.url);
     const pdfName = searchParams.get("pdf");
     const careersParam = searchParams.get("careers");
@@ -85,6 +90,10 @@ export async function GET(request: Request) {
       .select("professor_summary, duration_minutes, mode, gender, career, year")
       .or(`pdf_name.eq.${normalizedPdfName},pdf_name.ilike.${baseName}_%`)
       .not("professor_summary", "is", null);
+
+    if (userId) {
+      query = query.or(`professor_id.eq.${userId},professor_id.is.null`);
+    }
 
     // Supabase filter builder is chainable — TypeScript infers the type correctly
     if (careers.length > 0) query = query.in("career", careers);

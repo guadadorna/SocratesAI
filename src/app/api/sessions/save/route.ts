@@ -7,7 +7,7 @@ const SYSTEM_MESSAGE_MARKER = "[El estudiante acaba de unirse";
 
 export async function POST(request: Request) {
   try {
-    const { id, pdfName, durationMinutes, mode, messages, gender, career, year, professorSummary } =
+    const { id, pdfName, durationMinutes, mode, messages, gender, career, year, professorSummary, professorId, subjectId } =
       await request.json();
 
     if (!id || !messages) {
@@ -35,6 +35,8 @@ export async function POST(request: Request) {
       career: career ?? null,
       year: year ?? null,
       professor_summary: professorSummary ?? null,
+      professor_id: professorId ?? null,
+      subject_id: subjectId ?? null,
     });
 
     if (error) {

@@ -15,6 +15,8 @@ export interface SessionData {
   endedAt?: number;
   messages: { role: "user" | "assistant"; content: string }[];
   demographic?: Demographic;
+  professorId?: string;
+  subjectId?: string;
 }
 
 const SESSION_KEY = "socrates_session";

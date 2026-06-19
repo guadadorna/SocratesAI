@@ -1,18 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LandingPage() {
   const router = useRouter();
-  const [showProfesorInput, setShowProfesorInput] = useState(false);
-  const [password, setPassword] = useState("");
-
-  const handleProfesorAccess = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password.trim()) return;
-    router.push(`/profesor?key=${encodeURIComponent(password.trim())}`);
-  };
 
   return (
     <main className="flex-1 flex flex-col">
@@ -57,41 +48,12 @@ export default function LandingPage() {
       <footer className="py-6 text-center text-gray-500 text-sm">
         <span>Hecho para aprender mejor</span>
         <span className="mx-3 text-gray-300">·</span>
-        {!showProfesorInput ? (
-          <button
-            onClick={() => setShowProfesorInput(true)}
+        <button
+            onClick={() => router.push("/profesor/login")}
             className="text-gray-400 hover:text-gray-600 transition-colors"
           >
             Soy docente
           </button>
-        ) : (
-          <form
-            onSubmit={handleProfesorAccess}
-            className="inline-flex items-center gap-2 mt-2"
-          >
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Contraseña"
-              autoFocus
-              className="px-3 py-1 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-gray-700 w-36"
-            />
-            <button
-              type="submit"
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-            >
-              Entrar
-            </button>
-            <button
-              type="button"
-              onClick={() => { setShowProfesorInput(false); setPassword(""); }}
-              className="text-gray-400 hover:text-gray-500 text-xs"
-            >
-              Cancelar
-            </button>
-          </form>
-        )}
       </footer>
     </main>
   );

@@ -27,7 +27,12 @@ El tutor:
 - `src/app/intake/[id]/page.tsx` - Formulario demografico anonimo (carrera, año, genero)
 - `src/app/session/[id]/page.tsx` - Sesion de chat con el tutor
 - `src/app/session/[id]/feedback/page.tsx` - Pagina de feedback post-sesion (incluye formulario de feedback del alumno)
-- `src/app/profesor/page.tsx` - Dashboard docente (auth por PROFESOR_KEY)
+- `src/app/profesor/page.tsx` - Dashboard docente (auth por Supabase magic link)
+- `src/app/profesor/login/page.tsx` - Pagina de login docente (magic link form)
+- `src/app/profesor/login/actions.ts` - Server action para enviar el magic link
+- `src/app/auth/callback/route.ts` - Callback OAuth/OTP de Supabase; redirige a /profesor tras login exitoso
+- `src/lib/supabase-server.ts` - Cliente Supabase SSR (con cookies, para Server Components y Route Handlers)
+- `src/proxy.ts` - Middleware de Next.js 16 (refresca sesion Supabase en cada request a /profesor/* y /auth/*)
 - `src/app/profesor/ProfesorDashboard.tsx` - UI del dashboard docente (client component, incluye feedback del profesor y chat de repreguntas)
 - `src/app/api/chat/route.ts` - API del chat (streaming con Gemini)
 - `src/app/api/evaluate/route.ts` - API de evaluacion/feedback final
@@ -57,7 +62,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 7. **Exportar feedback como PDF** - El usuario puede descargar el diagnostico en PDF
 8. **Persistencia de sesiones** - Al terminar, la conversacion y el resumen del profesor se guardan en Supabase (conversacion anonimizada con Gemini)
 9. **Render de LaTeX** - Las ecuaciones en el chat, en el feedback y en el dashboard se renderizan correctamente (KaTeX)
-10. **Dashboard docente** - Pagina /profesor con auth por PROFESOR_KEY; muestra materiales con stats demograficos, filtros interactivos por carrera/año/genero, analisis de Gemini contextualizado al subgrupo, exportacion a PDF, y chat de repreguntas
+10. **Dashboard docente** - Pagina /profesor con auth por magic link (Supabase Auth); muestra materiales con stats demograficos, filtros interactivos por carrera/año/genero, analisis de Gemini contextualizado al subgrupo, exportacion a PDF, y chat de repreguntas
 11. **Feedback del tutor** - Al terminar la sesion el alumno puede dejar estrellas + texto libre; el profesor puede hacer lo mismo desde el dashboard. Se guarda en Supabase (sessions.student_feedback y tabla unit_feedback). Pendiente: incorporarlo al accionar del agente
 12. **Normalizacion de nombres de PDF** - Los PDFs descargados del campus tienen sufijos de hash MD5 (ej: "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"). La funcion normalizePdfName() los stripea al guardar y al agrupar sesiones, para que no queden separadas como materiales distintos.
 13. **Recomendaciones primero en dashboard docente** - El analisis del profesor muestra el action call (recomendaciones para la proxima clase) en un box ambar destacado al tope. Un boton "Ver analisis completo" expande el detalle completo.
@@ -81,19 +86,20 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 ## Variables de Entorno
 - `GOOGLE_GENERATIVE_AI_API_KEY` - API key de Google AI Studio
 - `SUPABASE_URL` - URL del proyecto Supabase
-- `SUPABASE_ANON_KEY` - Clave publica de Supabase
-- `PROFESOR_KEY` - Contrasena para proteger el dashboard docente (opcional; sin ella, el dashboard es publico)
+- `SUPABASE_ANON_KEY` - Clave publica de Supabase (legacy JWT, empieza con `eyJ...`)
+- `NEXT_PUBLIC_SITE_URL` - URL base del sitio; usada para construir el callback del magic link (en Vercel se puede usar `VERCEL_URL` como fallback, pero conviene setear la URL de produccion explicita)
 
 ## URLs
 - **Produccion**: https://socratesai-two.vercel.app
-- **Dashboard docente**: https://socratesai-two.vercel.app/profesor?key=socratesguada
+- **Dashboard docente**: https://socratesai-two.vercel.app/profesor (requiere login con magic link)
+- **Login docente**: https://socratesai-two.vercel.app/profesor/login
 - **Repo**: https://github.com/guadadorna/SocratesAI
 
 ## Limitaciones Conocidas
 - Gemini 2.5 Flash a veces tiene alta demanda (hay fallback a 2.5-flash-lite)
 - El parsing de PDF puede fallar con PDFs complejos o escaneados
-- No hay autenticacion de usuarios real (el dashboard docente usa una key simple en URL)
 - El formulario de intake tiene estilo basico, pendiente pulir
+- No hay multi-profesor: el dashboard muestra todas las sesiones sin filtrar por docente (N=1 por ahora)
 
 ## Workflow de desarrollo
 - Martina trabaja en la branch `Martina`, no tiene acceso directo al proyecto de Vercel de Guada
@@ -120,7 +126,7 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 
 ## Pendientes / Ideas Futuras
 - [ ] Pulir estilos del formulario de intake
-- [ ] Autenticacion de usuarios real (profesor vs estudiante)
+- [ ] Multi-profesor: vincular sesiones a un profesor especifico (profesor_id en sessions, link unico por profesor para compartir con alumnos)
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Permitir multiples unidades/materias
@@ -311,6 +317,30 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 - Se mantuvo la instruccion de explicar (Guada y Martina no querian sacarla)
 - La excepcion "salvo durante la fase de cierre" preserva el comportamiento de recap al final de sesion
 - No se toco ninguna instruccion sobre como o cuando explica el tutor
+
+### 2026-06-19 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Implementado login docente con magic link via Supabase Auth (email → link → sesion con cookies)
+- Reemplazado el check de `PROFESOR_KEY` en URL por `supabase.auth.getUser()` en `src/app/profesor/page.tsx`
+- Agregado boton "Cerrar sesion" en el header del dashboard (server action con `signOut()`)
+- El header del dashboard ahora muestra el email del profesor logueado
+- Modificado `src/app/auth/callback/route.ts`: redirige a `/profesor` tras login exitoso (antes iba a `/profesor/cuenta`)
+- Eliminado codigo de API-key-por-profesor (descartado en reunion 2026-06-19): `src/app/profesor/cuenta/`, `src/app/api/professor/api-key/route.ts`, `src/lib/crypto.ts`
+- Agregado `NEXT_PUBLIC_SITE_URL=http://localhost:3000` a `.env.local`
+
+**Problemas encontrados:**
+- Ninguno
+
+**Decisiones de diseno:**
+- Se usa la API key del sistema (`GOOGLE_GENERATIVE_AI_API_KEY`), no una por profesor — alineado con decision de la reunion
+- El proyecto de Supabase se migra a una cuenta institucional del proyecto (paso manual de Martina); el codigo es independiente de cual cuenta se use
+
+**Pasos manuales requeridos (Martina):**
+1. Crear cuenta Supabase con el mail del proyecto
+2. Crear proyecto nuevo y correr SQL de creacion de tablas (ver plan en `.claude/plans/squishy-bubbling-fountain.md`)
+3. Habilitar Email Auth en Supabase (Authentication → Providers → Email)
+4. Configurar redirect URLs: `http://localhost:3000/auth/callback` y `https://*.vercel.app/auth/callback`
+5. Actualizar `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env.local` y en Vercel (via Guada)
 
 ---
 

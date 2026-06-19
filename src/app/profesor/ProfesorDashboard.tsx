@@ -274,7 +274,157 @@ function toggle(set: Set<string>, value: string): Set<string> {
   return next;
 }
 
-export function ProfesorDashboard() {
+interface Subject {
+  id: string;
+  name: string;
+  pdf_name: string | null;
+  created_at: string;
+}
+
+function MisMaterias({ professorId }: { professorId: string }) {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch("/api/professor/subjects")
+      .then((r) => r.json())
+      .then((data) => setSubjects(Array.isArray(data) ? data : []))
+      .catch(() => setSubjects([]))
+      .finally(() => setLoading(false));
+  }, [professorId]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    const formData = new FormData();
+    formData.append("name", newName.trim());
+    if (newFile) formData.append("file", newFile);
+    try {
+      const res = await fetch("/api/professor/subjects", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { setCreateError(data.error ?? "Error al crear la materia"); return; }
+      setSubjects((prev) => [data, ...prev]);
+      setNewName("");
+      setNewFile(null);
+      setShowForm(false);
+    } catch {
+      setCreateError("Error al crear la materia. Intentá de nuevo.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const copyLink = (id: string) => {
+    const url = `${window.location.origin}/s/${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
+
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-gray-900">Mis materias</h3>
+        <button
+          onClick={() => { setShowForm((v) => !v); setCreateError(null); }}
+          className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+        >
+          {showForm ? "Cancelar" : "+ Nueva materia"}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la materia</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ej: EPP 2026 — Comisión Guada"
+              required
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Material (PDF) <span className="text-gray-400 font-normal">— opcional, podés cargarlo después</span>
+            </label>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                newFile ? "border-teal-400 bg-teal-50" : "border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+              {newFile ? (
+                <p className="text-sm text-teal-700 font-medium">{newFile.name}</p>
+              ) : (
+                <p className="text-sm text-gray-500">Hacé click para seleccionar un PDF</p>
+              )}
+            </div>
+          </div>
+          {createError && <p className="text-sm text-red-600">{createError}</p>}
+          <button
+            type="submit"
+            disabled={creating || !newName.trim()}
+            className="w-full py-2 px-4 rounded-lg text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 transition-colors"
+          >
+            {creating ? "Creando..." : "Crear materia"}
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-gray-400">Cargando materias...</p>
+      ) : subjects.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          Todavía no tenés materias. Creá una para compartir el link con tus alumnos.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {subjects.map((s) => (
+            <div key={s.id} className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
+                {s.pdf_name ? (
+                  <p className="text-xs text-gray-400 truncate">{s.pdf_name}</p>
+                ) : (
+                  <p className="text-xs text-amber-600">Sin material cargado</p>
+                )}
+              </div>
+              <button
+                onClick={() => copyLink(s.id)}
+                disabled={!s.pdf_name}
+                className="flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
+              >
+                {copiedId === s.id ? "¡Copiado!" : "Copiar link"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ProfesorDashboard({ professorId }: { professorId: string }) {
   const [units, setUnits] = useState<UnitStats[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(true);
   const [unitsError, setUnitsError] = useState<string | null>(null);
@@ -750,19 +900,24 @@ export function ProfesorDashboard() {
 
   if (units.length === 0) {
     return (
-      <div className="text-center py-24">
-        <p className="text-gray-500 text-lg mb-2">
-          Todavía no hay sesiones registradas.
-        </p>
-        <p className="text-gray-400 text-sm">
-          Las sesiones aparecen acá cuando los alumnos completan una tutoría.
-        </p>
+      <div>
+        <MisMaterias professorId={professorId} />
+        <div className="text-center py-16">
+          <p className="text-gray-500 text-lg mb-2">
+            Todavía no hay sesiones registradas.
+          </p>
+          <p className="text-gray-400 text-sm">
+            Las sesiones aparecen acá cuando los alumnos completan una tutoría.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div>
+      <MisMaterias professorId={professorId} />
+      <div className="space-y-4">
       {units.map((unit) => {
         const topCareers = Object.entries(unit.careers)
           .sort((a, b) => b[1] - a[1])
@@ -832,6 +987,7 @@ export function ProfesorDashboard() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

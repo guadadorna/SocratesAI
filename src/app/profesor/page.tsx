@@ -1,17 +1,20 @@
 import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { ProfesorDashboard } from "./ProfesorDashboard";
 
-export default async function ProfesorPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-  const { key } = await searchParams;
-  const profesorKey = process.env.PROFESOR_KEY;
+async function signOut() {
+  "use server";
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+  redirect("/profesor/login");
+}
 
-  // If PROFESOR_KEY is set in env, require a matching key param
-  if (profesorKey && key !== profesorKey) {
-    redirect("/dashboard");
+export default async function ProfesorPage() {
+  const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getUser();
+
+  if (!data.user) {
+    redirect("/profesor/login");
   }
 
   return (
@@ -19,7 +22,17 @@ export default async function ProfesorPage({
       <header className="no-print bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900">SocratesAI</h1>
-          <span className="text-sm text-gray-500">Dashboard docente</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-gray-500">{data.user.email}</span>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="text-sm text-gray-500 hover:text-gray-700 underline"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
         </div>
       </header>
 
@@ -34,7 +47,7 @@ export default async function ProfesorPage({
           </p>
         </div>
 
-        <ProfesorDashboard />
+        <ProfesorDashboard professorId={data.user!.id} />
       </main>
     </div>
   );
