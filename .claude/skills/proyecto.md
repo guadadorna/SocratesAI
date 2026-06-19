@@ -67,6 +67,9 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 12. **Normalizacion de nombres de PDF** - Los PDFs descargados del campus tienen sufijos de hash MD5 (ej: "7. Dif in Dif_d19b4f2c..._f69d728c....pdf"). La funcion normalizePdfName() los stripea al guardar y al agrupar sesiones, para que no queden separadas como materiales distintos.
 13. **Recomendaciones primero en dashboard docente** - El analisis del profesor muestra el action call (recomendaciones para la proxima clase) en un box ambar destacado al tope. Un boton "Ver analisis completo" expande el detalle completo.
 14. **Cache de analisis del dashboard docente** - El analisis generado por Gemini se guarda en la tabla `unit_analysis` (pdf_name + filter_key). Al seleccionar una unidad, el analisis se carga automaticamente: si ya existe en cache, aparece instantaneamente; si no, llama a Gemini (~30 seg) y lo guarda. El boton "Regenerar" fuerza una nueva llamada a Gemini y sobreescribe el cache.
+15. **Login docente con magic link** - La profesora entra a /profesor/login, ingresa su email y recibe un link de acceso sin contrasena (Supabase Auth OTP). El dashboard muestra el email logueado y boton de cerrar sesion. Reemplaza el sistema anterior de PROFESOR_KEY en URL.
+16. **Sistema de materias** - La profesora crea materias desde el dashboard (nombre + PDF). Cada materia genera un link unico `/s/[id]` para compartir con alumnos. El alumno que entra por ese link tiene el PDF pre-cargado y solo elige el tiempo. Las sesiones quedan taggeadas con professor_id y subject_id.
+17. **UX sesion mejorada** - Timer fijo en header sticky (siempre visible al scrollear). Boton "Terminar sesion" bajado a la barra inferior (siempre accesible sin scrollear).
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -320,27 +323,30 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 
 ### 2026-06-19 - Sesion con Martina (branch Martina)
 **Lo que se hizo:**
-- Implementado login docente con magic link via Supabase Auth (email → link → sesion con cookies)
-- Reemplazado el check de `PROFESOR_KEY` en URL por `supabase.auth.getUser()` en `src/app/profesor/page.tsx`
-- Agregado boton "Cerrar sesion" en el header del dashboard (server action con `signOut()`)
-- El header del dashboard ahora muestra el email del profesor logueado
-- Modificado `src/app/auth/callback/route.ts`: redirige a `/profesor` tras login exitoso (antes iba a `/profesor/cuenta`)
-- Eliminado codigo de API-key-por-profesor (descartado en reunion 2026-06-19): `src/app/profesor/cuenta/`, `src/app/api/professor/api-key/route.ts`, `src/lib/crypto.ts`
-- Agregado `NEXT_PUBLIC_SITE_URL=http://localhost:3000` a `.env.local`
-
-**Problemas encontrados:**
-- Ninguno
+- Implementado login docente con magic link via Supabase Auth
+- Reemplazado PROFESOR_KEY por `supabase.auth.getUser()` en `/profesor/page.tsx`
+- Agregado boton "Cerrar sesion" en header del dashboard (server action)
+- Header del dashboard muestra email del profesor logueado
+- Modificado `src/app/auth/callback/route.ts`: redirige a `/profesor` tras login
+- Eliminado codigo de API-key-por-profesor: `cuenta/`, `api/professor/api-key/`, `crypto.ts`
+- "Soy docente" en landing redirige a `/profesor/login` (en vez de pedir contrasena)
+- Implementado sistema de materias: `subjects` table, `/api/professor/subjects`, `/api/subjects/[id]`
+- Nueva pagina `/s/[subject_id]`: entrada de alumnos via link del profesor (PDF pre-cargado)
+- Sessions taggeadas con `professor_id` y `subject_id` al guardar
+- Dashboard filtra sesiones por profesor logueado (OR null para sesiones historicas)
+- Timer con `sticky top-0` en header: siempre visible al scrollear
+- Boton "Terminar sesion" bajado a barra inferior: siempre accesible
 
 **Decisiones de diseno:**
-- Se usa la API key del sistema (`GOOGLE_GENERATIVE_AI_API_KEY`), no una por profesor — alineado con decision de la reunion
-- El proyecto de Supabase se migra a una cuenta institucional del proyecto (paso manual de Martina); el codigo es independiente de cual cuenta se use
+- API key del sistema para todos (no por profesor), alineado con decision de reunion
+- Sesiones historicas (professor_id = null) siguen visibles para cualquier profe logueada (compat hacia atras)
+- El cache de `unit_analysis` no incluye professor_id todavia (aceptable para N=1)
 
-**Pasos manuales requeridos (Martina):**
-1. Crear cuenta Supabase con el mail del proyecto
-2. Crear proyecto nuevo y correr SQL de creacion de tablas (ver plan en `.claude/plans/squishy-bubbling-fountain.md`)
-3. Habilitar Email Auth en Supabase (Authentication → Providers → Email)
-4. Configurar redirect URLs: `http://localhost:3000/auth/callback` y `https://*.vercel.app/auth/callback`
-5. Actualizar `SUPABASE_URL` y `SUPABASE_ANON_KEY` en `.env.local` y en Vercel (via Guada)
+**Pasos pendientes para produccion (Guada):**
+- Actualizar en Vercel: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (al proyecto con Auth habilitado), `NEXT_PUBLIC_SITE_URL=https://socratesai-two.vercel.app`
+- Eliminar `PROFESOR_KEY` de Vercel (ya no se usa)
+- Correr SQL de nuevas tablas/columnas si no se hizo: subjects table + ALTER TABLE sessions ADD COLUMN professor_id/subject_id
+- Habilitar Email Auth en Supabase + agregar redirect URLs de produccion
 
 ---
 
