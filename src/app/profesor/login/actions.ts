@@ -29,6 +29,7 @@ export async function signInWithMagicLink(
   })
 
   if (error) {
+    console.error('[signInWithMagicLink]', error)
     return { error: 'No se pudo enviar el link. Intentá de nuevo.' }
   }
 
