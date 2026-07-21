@@ -88,9 +88,11 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 
 ## Variables de Entorno
 - `GOOGLE_GENERATIVE_AI_API_KEY` - API key de Google AI Studio
-- `SUPABASE_URL` - URL del proyecto Supabase
+- `SUPABASE_URL` - URL del proyecto Supabase (desde el 21/7 apunta al proyecto Supabase de **Martu**, no al original de Guada; Guada fue invitada como colaboradora ahi)
 - `SUPABASE_ANON_KEY` - Clave publica de Supabase (legacy JWT, empieza con `eyJ...`)
-- `NEXT_PUBLIC_SITE_URL` - URL base del sitio; usada para construir el callback del magic link (en Vercel se puede usar `VERCEL_URL` como fallback, pero conviene setear la URL de produccion explicita)
+- `NEXT_PUBLIC_SITE_URL` - URL base del sitio; usada para construir el callback del magic link. **Importante**: si esta variable esta seteada para el ambiente Preview (no solo Production) en Vercel, fuerza que el magic link de CUALQUIER deployment (incluidas las previews de otras branches) redirija siempre a esa URL fija, ignorando el fallback automatico a `VERCEL_URL`. Si se prueba login en una preview y el callback da 404, revisar esto primero.
+- **Redirect URLs en Supabase Auth** (Authentication → URL Configuration): tienen que incluir explicitamente cada dominio desde el que se va a loguear (localhost, produccion, y la URL de cada preview de branch que se use para probar) o `signInWithOtp` rechaza el pedido sin loguear nada en Auth Logs.
+- Despues de cambiar cualquier env var en Vercel hace falta **Redeploy manual** — no se aplica sola al deployment ya corriendo. Production y cada Preview son deployments independientes: redeployar uno no redeploya el otro.
 
 ## URLs
 - **Produccion**: https://socratesai-two.vercel.app
@@ -132,7 +134,11 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Incorporar feedback del alumno y del profesor al accionar del agente tutor
 - [ ] Agregar professor_id al cache de unit_analysis (hoy el cache es global por pdf_name+filter_key; si hay multiples profes con el mismo PDF, comparten cache)
-- [ ] Probar flujo completo del alumno via /s/[subject_id] en produccion (pendiente que Guada actualice Vercel)
+- [ ] Que Guada mergee el PR de `Martina` a `main` (login docente + sistema de materias) — es lo unico que falta para que funcione en produccion real, no solo en preview
+- [ ] Una vez mergeado: probar el flujo completo del alumno via /s/[subject_id] y el login docente en produccion (`socratesai-two.vercel.app`)
+- [ ] Verificar que las tablas `subjects` y las columnas `sessions.professor_id`/`sessions.subject_id` existan en el Supabase de Martu (probablemente ya corridas, confirmar)
+- [ ] Sacar el `console.error` de diagnostico agregado en `src/app/profesor/login/actions.ts` una vez confirmado que el login anda estable en produccion
+- [ ] Definir alcance de QR + enrolamiento de alumnos por materia (pausado sin decidir): opciones eran (a) solo QR del link existente, (b) QR + conteo anonimo de alumnos distintos via ID persistente en localStorage, (c) QR + registro con nombre/email — esta ultima rompe el principio de anonimizacion del proyecto, requeriria discutirlo antes
 
 ---
 
@@ -348,6 +354,28 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 - Habilitar Email Auth en Supabase + agregar redirect URLs de produccion
 
 ---
+
+### 2026-07-21 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Diagnosticado y resuelto el login docente con magic link, roto desde el 19/6: la causa real era `NEXT_PUBLIC_SITE_URL` fija a la URL de produccion, que forzaba el redirect del magic link ahi en cualquier ambiente (incluida la preview), combinado con Redirect URLs faltantes en Supabase Auth (localhost, produccion y la URL de preview de la branch Martina)
+- Agregado `console.error('[signInWithMagicLink]', error)` en `src/app/profesor/login/actions.ts` para loguear el error real de `signInWithOtp` del lado del servidor (commit `f200c6c`)
+- Migrado el proyecto para usar el Supabase de Martu (con Auth ya configurado) en vez de crear una cuenta institucional nueva; se invito a Guada como colaboradora ahi (rol Developer)
+- Armado instructivo para agregar a Martu como colaboradora del proyecto de Vercel de Guada (rol Member, no Developer — Developer no puede editar env vars de produccion). Pendiente de que Guada lo ejecute (requiere plan pago de Vercel para agregar miembros)
+- **Hallazgo clave**: la branch `Martina` (con todo el login docente + sistema de materias) nunca habia sido mergeada a `main` via Pull Request — por eso el callback del magic link daba 404 en produccion real, mas alla de cualquier configuracion de env vars. Confirmado comparando `git log origin/main..origin/Martina`
+- Abierto Pull Request de `Martina` a `main` para llevar la feature a produccion; enviado a Guada para review y merge
+
+**Problemas encontrados:**
+- El login habia funcionado una vez el 19/6 en preview (antes de que existiera `NEXT_PUBLIC_SITE_URL`, el codigo caia al fallback `VERCEL_URL` que apuntaba correctamente a la preview) y se rompio despues de agregar esa variable apuntando fijo a produccion
+- Cambiar env vars en Vercel no alcanza: hace falta Redeploy manual, y por separado para produccion y para cada preview (son deployments independientes)
+- Navegar los logs de Supabase (Auth Logs vs Postgres Logs vs Edge/API Logs) resulto confuso en la practica; varios intentos terminaron mirando logs de Postgres (ruido de checkpoints) en vez de Auth Logs
+
+**Decisiones de diseno:**
+- No exponer errores tecnicos de Supabase al usuario final en la UI de login (se descarto un intento de mostrar `error.message` directamente por mala UX); el diagnostico se resolvio con logging server-side en vez de mensajes visibles
+
+**Pasos pendientes para produccion:**
+- Que Guada mergee el Pull Request de `Martina` a `main`
+- Confirmar que las tablas/columnas de Supabase (`subjects`, `sessions.professor_id`, `sessions.subject_id`) existan en el Supabase de Martu
+- Probar el flujo completo (login docente + `/s/[subject_id]`) en produccion una vez mergeado
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:
