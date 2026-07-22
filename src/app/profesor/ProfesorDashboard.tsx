@@ -704,14 +704,6 @@ export function ProfesorDashboard({ professorId }: { professorId: string }) {
     return (
       <div>
         <MisMaterias professorId={professorId} />
-        <div className="text-center py-16">
-          <p className="text-gray-500 text-lg mb-2">
-            Todavía no hay sesiones registradas.
-          </p>
-          <p className="text-gray-400 text-sm">
-            Las sesiones aparecen acá cuando los alumnos completan una tutoría.
-          </p>
-        </div>
       </div>
     );
   }
@@ -719,7 +711,14 @@ export function ProfesorDashboard({ professorId }: { professorId: string }) {
   return (
     <div>
       <MisMaterias professorId={professorId} />
-      <div className="space-y-4">
+      <details className="mt-2 border-t border-gray-200 pt-4">
+        <summary className="cursor-pointer text-sm font-medium text-gray-500 hover:text-gray-700 select-none">
+          Ejemplos / Tutorial
+        </summary>
+        <p className="text-xs text-gray-400 mt-2 mb-3">
+          Sesiones de prueba sin materia asociada — quedan acá como referencia de cómo funciona el tutor.
+        </p>
+        <div className="space-y-4">
       {units.map((unit) => {
         const topCareers = Object.entries(unit.careers)
           .sort((a, b) => b[1] - a[1])
@@ -789,7 +788,8 @@ export function ProfesorDashboard({ professorId }: { professorId: string }) {
           </div>
         );
       })}
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
