@@ -43,9 +43,10 @@ El tutor:
 - `src/app/api/professor/chat/route.ts` - Chat de repreguntas del dashboard docente (streaming con Gemini)
 - `src/app/api/feedback/route.ts` - Guarda feedback del alumno (en sessions) y del profesor (en unit_feedback)
 - `src/app/api/professor/subjects/route.ts` - Lista/crea materias del profesor logueado
-- `src/app/api/professor/subjects/[id]/route.ts` - PUT: reemplaza el material (PDF) de una materia existente
+- `src/app/api/professor/subjects/[id]/materials/route.ts` - GET lista / POST agrega un PDF a una materia existente
+- `src/app/api/professor/subjects/[id]/materials/[materialId]/route.ts` - DELETE elimina un PDF de una materia
 - `src/app/api/professor/subjects/[id]/summary/route.ts` - Analisis Gemini + demographics scoped por subject_id (paralelo a /api/summary pero por materia, no por pdf_name)
-- `src/app/api/subjects/[id]/route.ts` - GET publico (sin auth) que consume el alumno en /s/[subject_id]
+- `src/app/api/subjects/[id]/route.ts` - GET publico (sin auth) que consume el alumno en /s/[subject_id]; concatena el texto de todos los materiales de la materia
 - `src/app/api/subjects/[id]/enroll/route.ts` - Registra un alumno anonimo (uuid en localStorage) como inscripto en una materia
 - `src/app/profesor/materias/[id]/page.tsx` - Pagina de detalle de una materia (server component, auth + ownership check)
 - `src/app/profesor/materias/[id]/MateriaDetail.tsx` - UI del detalle: material, alumnos inscriptos, upload/reemplazo de PDF, analisis por materia
@@ -83,7 +84,8 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 16. **Sistema de materias** - La profesora crea materias desde el dashboard (nombre + PDF). Cada materia genera un link unico `/s/[id]` para compartir con alumnos. El alumno que entra por ese link tiene el PDF pre-cargado y solo elige el tiempo. Las sesiones quedan taggeadas con professor_id y subject_id.
 17. **UX sesion mejorada** - Timer fijo en header sticky (siempre visible al scrollear). Boton "Terminar sesion" bajado a la barra inferior (siempre accesible sin scrollear).
 18. **Enrolamiento anonimo por QR/link** - El profesor genera un QR por materia desde "Mis materias". Cada alumno que entra por el link/QR queda registrado con un id anonimo (uuid en localStorage) en la tabla `enrollments`. El dashboard muestra la cantidad de alumnos inscriptos por materia.
-19. **Pagina de detalle de materia** (`/profesor/materias/[id]`) - Al abrir una materia se ve: material cargado (o dropzone para subirlo/reemplazarlo en cualquier momento, no solo al crear), cantidad de alumnos inscriptos, y el analisis de feedback de Gemini **scoped por subject_id** (no por nombre de PDF). Esto resuelve el bug donde una materia que reutiliza el nombre de un PDF suelto viejo (flujo legacy) mezclaba sus sesiones con las de ese PDF en la vista de "Analisis por unidad". Mismos filtros demograficos, cache y chat de repreguntas que la vista legacy, pero aislados por materia.
+19. **Pagina de detalle de materia** (`/profesor/materias/[id]`) - Al abrir una materia se ve: lista de PDFs cargados (agregar nuevos o eliminar cualquiera en cualquier momento, no solo al crear), cantidad de alumnos inscriptos, y el analisis de feedback de Gemini **scoped por subject_id** (no por nombre de PDF). Esto resuelve el bug donde una materia que reutiliza el nombre de un PDF suelto viejo (flujo legacy) mezclaba sus sesiones con las de ese PDF en la vista de "Analisis por unidad". Mismos filtros demograficos, cache y chat de repreguntas que la vista legacy, pero aislados por materia.
+20. **Multiples PDFs por materia** - Una materia puede tener varios documentos (tabla `materials`, uno-a-muchos con `subjects`). El alumno sigue entrando por un unico link/QR sin elegir nada: el tutor recibe el texto concatenado de todos los PDFs de la materia. Pendiente para una fase futura (pausado, no decidido): agrupar los PDFs en "unidades" y dejar que el alumno elija cual estudiar, al estilo Moodle.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -151,8 +153,9 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Que Guada mergee el PR de `Martina` a `main` (login docente + sistema de materias) — es lo unico que falta para que funcione en produccion real, no solo en preview
 - [ ] Una vez mergeado: probar el flujo completo del alumno via /s/[subject_id] y el login docente en produccion (`socratesai-two.vercel.app`)
 - [ ] Sacar el `console.error` de diagnostico agregado en `src/app/profesor/login/actions.ts` una vez confirmado que el login anda estable en produccion
-- [ ] Correr en Supabase la migracion SQL de la sesion de hoy (columna `subject_id` + indice unico en `unit_analysis`) si no se corrio todavia — necesaria para que `/api/professor/subjects/[id]/summary` funcione
-- [ ] Extender `unit_feedback` (o el endpoint `/api/feedback`) para poder asociar el feedback del profesor a un `subject_id` directamente, en vez de solo a `pdf_name` — hoy la pagina de detalle de materia sigue mandando `pdf_name` porque el endpoint no acepta otra cosa
+- [ ] Correr en Supabase la migracion SQL de la tabla `materials` (multiples PDFs por materia) — necesaria para que `/api/professor/subjects/[id]/materials` funcione y para que no desaparezca el PDF que ya tenia cada materia
+- [ ] Extender `unit_feedback` (o el endpoint `/api/feedback`) para poder asociar el feedback del profesor a un `subject_id` directamente, en vez de solo al nombre de la materia via `pdfName`
+- [ ] Definir si en el futuro hace falta agrupar los PDFs de una materia en "unidades" (estilo Moodle) y dejar que el alumno elija cual estudiar — pausado por ahora, hoy el tutor recibe el texto de todos los PDFs concatenado
 
 ---
 
@@ -397,10 +400,19 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 - Probado el flujo completo de enrolamiento por QR/link (feature del commit anterior, `7dfcb66`): confirmado en Supabase que `enrollments`, `subjects` y `sessions` (con `subject_id`/`professor_id`) se completan correctamente
 - Diagnosticado por que la sesion de prueba no aparecia bien en el dashboard docente: no era `professor_summary` nulo, sino que la vista de "Analisis por unidad" agrupa por `pdf_name` normalizado e ignora `subject_id` — al reusar una materia el nombre de un PDF suelto viejo, sus sesiones quedaban mezcladas con las de ese PDF
 - Implementada pagina de detalle de materia `/profesor/materias/[id]` con analisis **scoped por subject_id** (no por pdf_name), material del listado "Mis materias" ahora es clickeable
-- Agregado endpoint `PUT /api/professor/subjects/[id]` para subir/reemplazar el material de una materia ya creada (antes solo se podia cargar PDF al crearla)
 - Agregado endpoint `GET /api/professor/subjects/[id]/summary`, fork de `/api/summary` pero filtrando `sessions` por `subject_id` en vez de `pdf_name`; mismos filtros demograficos, misma logica de cache
 - Extraido `parsePdf()` duplicado (upload viejo + creacion de materia) a `src/lib/pdf.ts`; extraidos `MODELS`/`generateWithFallback`/`buildFilterKey` de `/api/summary` a `src/lib/gemini-analysis.ts`; nuevo `src/lib/subjects.ts` con `getOwnedSubject()` para el ownership check
 - Extraidos `PillToggle`, `StatCard`, `StarRating`, `ProfesorChat` de `ProfesorDashboard.tsx` a `src/components/professor/`, compartidos ahora entre el dashboard legacy y la pagina nueva de materia
+- Movidas las sesiones sueltas sin materia (datos de prueba del flujo legacy) a una seccion colapsable "Ejemplos / Tutorial" al pie del dashboard, para que no queden mezcladas visualmente con las materias reales
+
+**Segunda parte de la sesion — multiples PDFs por materia:**
+- Detectado que el modelo de 1 PDF por materia era muy limitado (Martina probando el detalle de materia notó que no se podían tener varios documentos, y que "reemplazar" perdía el anterior)
+- Nueva tabla `materials` (subject_id, pdf_name, pdf_content, created_at): una materia ahora puede tener N PDFs. Se migra el PDF que ya tenía cada materia como su primer registro
+- Reemplazado el endpoint `PUT /api/professor/subjects/[id]` (que reemplazaba el unico PDF) por `GET/POST /api/professor/subjects/[id]/materials` (listar/agregar) y `DELETE /api/professor/subjects/[id]/materials/[materialId]` (eliminar uno)
+- `src/app/api/professor/subjects/route.ts`: la creacion de materia ahora inserta el PDF (si se sube) como el primer registro de `materials`, no en columnas de `subjects`. El listado devuelve `material_count` en vez de `pdf_name`
+- `src/app/api/subjects/[id]/route.ts` (publico, consumido por `/s/[subject_id]`): en vez de leer `subjects.pdf_content`, concatena el texto de **todos** los materiales de la materia (separados por encabezado `### nombre.pdf`) — el alumno sigue entrando por el mismo link sin elegir nada, el tutor simplemente tiene mas contenido para preguntar
+- `MateriaDetail.tsx`: el dropzone de "reemplazar PDF" paso a ser una lista de materiales con boton "Eliminar" por item + dropzone de "Agregar PDF" al pie
+- `src/lib/subjects.ts` (`getOwnedSubject`) y las columnas `subjects.pdf_name`/`pdf_content` quedan sin usarse desde el codigo (no se dropearon de la tabla, solo se dejo de leer/escribir ahi) — la fuente de verdad del material es la tabla `materials`
 
 **Problemas encontrados:**
 - `npx next build` local falla en el prerender de `/_global-error` / `/_not-found` con `Invariant: Expected workStore to be initialized` — confirmado con `git stash` que este error **ya existia antes de esta sesion** (pasa igual con el codigo original de `main`/`Martina` sin tocar). No relacionado a los cambios de hoy; no se investigo mas a fondo porque no bloquea el trabajo (Vercel builda distinto) y la maquina local de Martina no soporta bien correr `npm run dev` para diagnosticar a fondo. Pendiente revisar si molesta en el futuro.
@@ -408,14 +420,32 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 **Decisiones de diseno:**
 - Se decidio NO tocar `/api/professor/units` ni la logica de negocio de `/api/summary` (vista legacy por pdf_name): quedan intactas para las sesiones sueltas sin materia; el analisis por materia vive en un endpoint y cache separados
 - Cache de analisis por materia: se agrego columna `subject_id` (nullable) a `unit_analysis` + un indice unico nuevo `UNIQUE(subject_id, filter_key)` que convive con el `UNIQUE(pdf_name, filter_key)` existente (en Postgres, multiples NULLs no colisionan bajo un indice unico, asi que las filas legacy no se ven afectadas)
-- Reemplazo de PDF de una materia se permite siempre, aunque ya tenga uno cargado — se acepta que la vista legacy por pdf_name pueda fragmentarse en ese caso (no se resuelve aca); la vista nueva por materia no sufre este problema porque filtra por subject_id, que no cambia al reemplazar el PDF
 - Pagina de detalle de materia es una pagina propia (`/profesor/materias/[id]`), no un modal, para dejar lugar a crecer (ej. lista de sesiones de esa materia) sin apilar mas modales sobre el dashboard
+- Multiples PDFs por materia: se permite borrar un material ya subido (a diferencia de MVPs anteriores que evitaban destructivo); el contenido que ve el tutor es la concatenacion de todos los PDFs de la materia, sin que el alumno elija nada — la eleccion de "que PDF estudiar" (tipo unidades de Moodle) se dejo pausada para una fase futura si hace falta
+- El label que se le pasa a Gemini/feedback/chat para identificar la materia paso a ser siempre `subject.name` (antes era `pdf_name` con fallback al nombre) — tiene mas sentido ahora que una materia puede tener varios PDFs con nombres distintos
 
-**Cambios en Supabase requeridos (pendiente correr):**
+**Cambios en Supabase requeridos:**
 ```sql
+-- Corrido por Martina el 2026-07-22
 ALTER TABLE unit_analysis ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id);
 CREATE UNIQUE INDEX IF NOT EXISTS unit_analysis_subject_id_filter_key_idx
   ON unit_analysis (subject_id, filter_key);
+
+-- Pendiente correr: tabla materials (multiples PDFs por materia)
+CREATE TABLE IF NOT EXISTS materials (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  subject_id UUID NOT NULL REFERENCES subjects(id),
+  pdf_name TEXT NOT NULL,
+  pdf_content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE materials DISABLE ROW LEVEL SECURITY;
+
+-- Migra el PDF que ya tenia cada materia como su primer material
+INSERT INTO materials (subject_id, pdf_name, pdf_content, created_at)
+SELECT id, pdf_name, pdf_content, created_at
+FROM subjects
+WHERE pdf_name IS NOT NULL AND pdf_content IS NOT NULL;
 ```
 
 ## Instrucciones para Claude

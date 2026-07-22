@@ -21,20 +21,26 @@ export interface SubjectStats {
 interface SubjectInfo {
   id: string;
   name: string;
-  pdf_name: string | null;
 }
 
-function MaterialUpload({
+export interface MaterialItem {
+  id: string;
+  pdf_name: string;
+  created_at: string;
+}
+
+function MaterialsList({
   subjectId,
-  pdfName,
-  onUploaded,
+  materials,
+  onChange,
 }: {
   subjectId: string;
-  pdfName: string | null;
-  onUploaded: (pdfName: string) => void;
+  materials: MaterialItem[];
+  onChange: (materials: MaterialItem[]) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,8 +51,8 @@ function MaterialUpload({
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch(`/api/professor/subjects/${subjectId}`, {
-        method: "PUT",
+      const res = await fetch(`/api/professor/subjects/${subjectId}/materials`, {
+        method: "POST",
         body: formData,
       });
       const data = await res.json();
@@ -54,7 +60,7 @@ function MaterialUpload({
         setError(data.error ?? "Error al subir el material");
         return;
       }
-      onUploaded(data.pdf_name);
+      onChange([...materials, data]);
       setFile(null);
     } catch {
       setError("Error al subir el material. Intentá de nuevo.");
@@ -63,14 +69,53 @@ function MaterialUpload({
     }
   };
 
+  const handleDelete = async (materialId: string) => {
+    if (deletingId) return;
+    setDeletingId(materialId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/professor/subjects/${subjectId}/materials/${materialId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error ?? "Error al eliminar el material");
+        return;
+      }
+      onChange(materials.filter((m) => m.id !== materialId));
+    } catch {
+      setError("Error al eliminar el material. Intentá de nuevo.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-      <p className="text-sm font-medium text-gray-700 mb-1">Material (PDF)</p>
-      {pdfName ? (
-        <p className="text-xs text-gray-400 mb-3 truncate">{pdfName}</p>
-      ) : (
+      <p className="text-sm font-medium text-gray-700 mb-2">Material (PDF)</p>
+
+      {materials.length === 0 ? (
         <p className="text-xs text-amber-600 mb-3">Sin material cargado todavía</p>
+      ) : (
+        <ul className="space-y-1.5 mb-3">
+          {materials.map((m) => (
+            <li
+              key={m.id}
+              className="flex items-center justify-between gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2"
+            >
+              <span className="text-gray-700 truncate">{m.pdf_name}</span>
+              <button
+                onClick={() => handleDelete(m.id)}
+                disabled={deletingId === m.id}
+                className="flex-shrink-0 text-xs text-red-500 hover:text-red-700 disabled:text-gray-300"
+              >
+                {deletingId === m.id ? "Eliminando..." : "Eliminar"}
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
+
       <div
         onClick={() => fileInputRef.current?.click()}
         className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
@@ -87,9 +132,7 @@ function MaterialUpload({
         {file ? (
           <p className="text-sm text-teal-700 font-medium">{file.name}</p>
         ) : (
-          <p className="text-sm text-gray-500">
-            {pdfName ? "Hacé click para reemplazar el PDF" : "Hacé click para seleccionar un PDF"}
-          </p>
+          <p className="text-sm text-gray-500">Hacé click para agregar un PDF</p>
         )}
       </div>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
@@ -99,7 +142,7 @@ function MaterialUpload({
           disabled={uploading}
           className="mt-3 w-full py-2 px-4 rounded-lg text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 transition-colors"
         >
-          {uploading ? "Subiendo..." : pdfName ? "Reemplazar material" : "Subir material"}
+          {uploading ? "Subiendo..." : "Agregar PDF"}
         </button>
       )}
     </div>
@@ -109,13 +152,15 @@ function MaterialUpload({
 export function MateriaDetail({
   subject,
   enrolledCount,
+  initialMaterials,
   initialStats,
 }: {
   subject: SubjectInfo;
   enrolledCount: number;
+  initialMaterials: MaterialItem[];
   initialStats: SubjectStats;
 }) {
-  const [pdfName, setPdfName] = useState(subject.pdf_name);
+  const [materials, setMaterials] = useState(initialMaterials);
   const [stats] = useState(initialStats);
 
   const [selectedCareers, setSelectedCareers] = useState<Set<string>>(
@@ -201,7 +246,7 @@ export function MateriaDetail({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: "professor",
-          pdfName: pdfName ?? subject.name,
+          pdfName: subject.name,
           rating: profRating,
           text: profText.trim() || null,
           filterContext: activeFilterLabel || null,
@@ -231,7 +276,7 @@ export function MateriaDetail({
         </p>
       </div>
 
-      <MaterialUpload subjectId={subject.id} pdfName={pdfName} onUploaded={setPdfName} />
+      <MaterialsList subjectId={subject.id} materials={materials} onChange={setMaterials} />
 
       {stats.session_count === 0 ? (
         <div className="text-center py-16">
@@ -472,7 +517,7 @@ export function MateriaDetail({
                 )}
               </div>
 
-              <ProfesorChat analysisContext={analysis.summary} pdfName={pdfName ?? subject.name} />
+              <ProfesorChat analysisContext={analysis.summary} pdfName={subject.name} />
             </>
           )}
         </>

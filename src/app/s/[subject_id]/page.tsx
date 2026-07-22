@@ -45,7 +45,7 @@ export default function SubjectEntryPage() {
           return;
         }
         setSubjectName(data.name);
-        setPdfName(data.pdf_name ?? data.name);
+        setPdfName(data.name);
         setPdfContent(data.pdf_content);
         setProfessorId(data.professor_id);
       } catch {

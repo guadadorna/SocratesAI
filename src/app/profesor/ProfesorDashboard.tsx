@@ -24,9 +24,9 @@ interface UnitStats {
 interface Subject {
   id: string;
   name: string;
-  pdf_name: string | null;
   created_at: string;
   enrolled_count?: number;
+  material_count?: number;
 }
 
 function MisMaterias({ professorId }: { professorId: string }) {
@@ -164,8 +164,10 @@ function MisMaterias({ professorId }: { professorId: string }) {
             <div key={s.id} className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
               <Link href={`/profesor/materias/${s.id}`} className="min-w-0 hover:opacity-70 transition-opacity">
                 <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
-                {s.pdf_name ? (
-                  <p className="text-xs text-gray-400 truncate">{s.pdf_name}</p>
+                {s.material_count ? (
+                  <p className="text-xs text-gray-400 truncate">
+                    {s.material_count} material{s.material_count === 1 ? "" : "es"}
+                  </p>
                 ) : (
                   <p className="text-xs text-amber-600">Sin material cargado</p>
                 )}
@@ -176,14 +178,14 @@ function MisMaterias({ professorId }: { professorId: string }) {
               <div className="flex-shrink-0 flex items-center gap-2">
                 <button
                   onClick={() => showQr(s)}
-                  disabled={!s.pdf_name}
+                  disabled={!s.material_count}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
                 >
                   QR
                 </button>
                 <button
                   onClick={() => copyLink(s.id)}
-                  disabled={!s.pdf_name}
+                  disabled={!s.material_count}
                   className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
                 >
                   {copiedId === s.id ? "¡Copiado!" : "Copiar link"}

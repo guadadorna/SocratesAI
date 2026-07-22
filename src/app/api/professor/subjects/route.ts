@@ -11,7 +11,7 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("subjects")
-    .select("id, name, pdf_name, created_at")
+    .select("id, name, created_at")
     .eq("professor_id", userData.user.id)
     .order("created_at", { ascending: false });
 
@@ -19,11 +19,15 @@ export async function GET() {
 
   const subjects = await Promise.all(
     (data ?? []).map(async (subject) => {
-      const { count } = await supabase
-        .from("enrollments")
-        .select("*", { count: "exact", head: true })
-        .eq("subject_id", subject.id);
-      return { ...subject, enrolled_count: count ?? 0 };
+      const [{ count: enrolledCount }, { count: materialCount }] = await Promise.all([
+        supabase.from("enrollments").select("*", { count: "exact", head: true }).eq("subject_id", subject.id),
+        supabase.from("materials").select("*", { count: "exact", head: true }).eq("subject_id", subject.id),
+      ]);
+      return {
+        ...subject,
+        enrolled_count: enrolledCount ?? 0,
+        material_count: materialCount ?? 0,
+      };
     })
   );
 
@@ -43,8 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Nombre inválido" }, { status: 400 });
   }
 
-  let pdfName: string | null = null;
-  let pdfContent: string | null = null;
+  let parsedFile: { name: string; text: string } | null = null;
 
   if (file instanceof File) {
     if (file.type !== "application/pdf") {
@@ -58,21 +61,24 @@ export async function POST(request: Request) {
     if (pageCount > MAX_PDF_PAGES) {
       return NextResponse.json({ error: "El PDF no puede tener más de 100 páginas" }, { status: 400 });
     }
-    pdfName = file.name;
-    pdfContent = text;
+    parsedFile = { name: file.name, text };
   }
 
-  const { data, error } = await supabase
+  const { data: subject, error } = await supabase
     .from("subjects")
-    .insert({
-      professor_id: userData.user.id,
-      name: name.trim(),
-      pdf_name: pdfName,
-      pdf_content: pdfContent,
-    })
-    .select("id, name, pdf_name, created_at")
+    .insert({ professor_id: userData.user.id, name: name.trim() })
+    .select("id, name, created_at")
     .single();
 
   if (error) return NextResponse.json({ error: "Error al crear la materia" }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+
+  let materialCount = 0;
+  if (parsedFile) {
+    const { error: materialError } = await supabase
+      .from("materials")
+      .insert({ subject_id: subject.id, pdf_name: parsedFile.name, pdf_content: parsedFile.text });
+    if (!materialError) materialCount = 1;
+  }
+
+  return NextResponse.json({ ...subject, enrolled_count: 0, material_count: materialCount }, { status: 201 });
 }

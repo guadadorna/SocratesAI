@@ -5,7 +5,29 @@ import { getOwnedSubject } from "@/lib/subjects";
 
 export const maxDuration = 60;
 
-export async function PUT(
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const supabase = await createSupabaseServerClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+
+  const subject = await getOwnedSubject(supabase, id, userData.user.id);
+  if (!subject) return NextResponse.json({ error: "Materia no encontrada" }, { status: 404 });
+
+  const { data, error } = await supabase
+    .from("materials")
+    .select("id, pdf_name, created_at")
+    .eq("subject_id", id)
+    .order("created_at", { ascending: true });
+
+  if (error) return NextResponse.json({ error: "Error al leer los materiales" }, { status: 500 });
+  return NextResponse.json(data ?? []);
+}
+
+export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -37,12 +59,11 @@ export async function PUT(
   }
 
   const { data, error } = await supabase
-    .from("subjects")
-    .update({ pdf_name: file.name, pdf_content: text })
-    .eq("id", id)
-    .select("id, name, pdf_name, created_at")
+    .from("materials")
+    .insert({ subject_id: id, pdf_name: file.name, pdf_content: text })
+    .select("id, pdf_name, created_at")
     .single();
 
-  if (error) return NextResponse.json({ error: "Error al actualizar el material" }, { status: 500 });
-  return NextResponse.json(data);
+  if (error) return NextResponse.json({ error: "Error al subir el material" }, { status: 500 });
+  return NextResponse.json(data, { status: 201 });
 }

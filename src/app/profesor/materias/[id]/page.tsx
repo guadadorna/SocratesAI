@@ -25,6 +25,12 @@ export default async function MateriaPage({
     .select("*", { count: "exact", head: true })
     .eq("subject_id", id);
 
+  const { data: materialsData } = await supabase
+    .from("materials")
+    .select("id, pdf_name, created_at")
+    .eq("subject_id", id)
+    .order("created_at", { ascending: true });
+
   const { data: sessionsData } = await supabase
     .from("sessions")
     .select("gender, career, year, duration_minutes")
@@ -72,8 +78,9 @@ export default async function MateriaPage({
         </div>
 
         <MateriaDetail
-          subject={{ id: subject.id, name: subject.name, pdf_name: subject.pdf_name }}
+          subject={{ id: subject.id, name: subject.name }}
           enrolledCount={enrolledCount ?? 0}
+          initialMaterials={materialsData ?? []}
           initialStats={stats}
         />
       </main>

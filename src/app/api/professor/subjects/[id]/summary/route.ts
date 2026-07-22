@@ -42,7 +42,7 @@ export async function GET(
     const genders = gendersParam ? gendersParam.split(",").filter(Boolean) : [];
 
     const filterKey = buildFilterKey(careers, years, genders);
-    const pdfName = subject.pdf_name ?? subject.name;
+    const pdfName = subject.name;
 
     // Servir desde caché si existe y no se pidió regenerar
     if (!regenerate) {

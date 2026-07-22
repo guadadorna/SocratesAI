@@ -3,7 +3,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export interface OwnedSubject {
   id: string;
   name: string;
-  pdf_name: string | null;
   professor_id: string;
 }
 
@@ -14,7 +13,7 @@ export async function getOwnedSubject(
 ): Promise<OwnedSubject | null> {
   const { data } = await supabase
     .from("subjects")
-    .select("id, name, pdf_name, professor_id")
+    .select("id, name, professor_id")
     .eq("id", id)
     .single();
 

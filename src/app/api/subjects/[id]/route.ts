@@ -7,15 +7,25 @@ export async function GET(
 ) {
   const { id } = await params;
 
-  const { data, error } = await supabase
+  const { data: subject, error } = await supabase
     .from("subjects")
-    .select("id, name, pdf_name, pdf_content, professor_id")
+    .select("id, name, professor_id")
     .eq("id", id)
     .single();
 
-  if (error || !data) {
+  if (error || !subject) {
     return NextResponse.json({ error: "Materia no encontrada" }, { status: 404 });
   }
 
-  return NextResponse.json(data);
+  const { data: materials } = await supabase
+    .from("materials")
+    .select("pdf_name, pdf_content")
+    .eq("subject_id", id)
+    .order("created_at", { ascending: true });
+
+  const pdfContent = materials && materials.length > 0
+    ? materials.map((m) => `### ${m.pdf_name}\n${m.pdf_content}`).join("\n\n")
+    : null;
+
+  return NextResponse.json({ ...subject, pdf_content: pdfContent });
 }
