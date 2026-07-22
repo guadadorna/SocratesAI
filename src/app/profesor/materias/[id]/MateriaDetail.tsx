@@ -8,6 +8,7 @@ import { PillToggle, toggle } from "@/components/professor/PillToggle";
 import { StatCard } from "@/components/professor/StatCard";
 import { StarRating } from "@/components/professor/StarRating";
 import { ProfesorChat } from "@/components/professor/ProfesorChat";
+import { ShareSubjectButtons } from "@/components/professor/ShareSubjectButtons";
 import type { AnalysisResult } from "@/components/professor/types";
 
 export interface SubjectStats {
@@ -269,11 +270,18 @@ export function MateriaDetail({
 
   return (
     <div>
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">{subject.name}</h2>
-        <p className="text-gray-600 mt-1">
-          {enrolledCount} alumno{enrolledCount === 1 ? "" : "s"} inscripto{enrolledCount === 1 ? "" : "s"}
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">{subject.name}</h2>
+          <p className="text-gray-600 mt-1">
+            {enrolledCount} alumno{enrolledCount === 1 ? "" : "s"} inscripto{enrolledCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        <ShareSubjectButtons
+          subjectId={subject.id}
+          subjectName={subject.name}
+          disabled={materials.length === 0}
+        />
       </div>
 
       <MaterialsList subjectId={subject.id} materials={materials} onChange={setMaterials} />
@@ -284,7 +292,7 @@ export function MateriaDetail({
             Todavía no hay sesiones registradas para esta materia.
           </p>
           <p className="text-gray-400 text-sm">
-            Compartí el link o el QR con tus alumnos desde &quot;Mis materias&quot;.
+            Compartí el link o el QR de arriba con tus alumnos.
           </p>
         </div>
       ) : (
