@@ -39,13 +39,25 @@ El tutor:
 - `src/app/api/upload/route.ts` - API para subir PDFs
 - `src/app/api/sessions/save/route.ts` - API para guardar sesion en Supabase
 - `src/app/api/summary/route.ts` - Resumen agregado de sesiones por unidad (con filtros demograficos)
-- `src/app/api/professor/units/route.ts` - Lista de materiales con stats por unidad
+- `src/app/api/professor/units/route.ts` - Lista de materiales con stats por unidad (flujo legacy, agrupa por pdf_name)
 - `src/app/api/professor/chat/route.ts` - Chat de repreguntas del dashboard docente (streaming con Gemini)
 - `src/app/api/feedback/route.ts` - Guarda feedback del alumno (en sessions) y del profesor (en unit_feedback)
+- `src/app/api/professor/subjects/route.ts` - Lista/crea materias del profesor logueado
+- `src/app/api/professor/subjects/[id]/route.ts` - PUT: reemplaza el material (PDF) de una materia existente
+- `src/app/api/professor/subjects/[id]/summary/route.ts` - Analisis Gemini + demographics scoped por subject_id (paralelo a /api/summary pero por materia, no por pdf_name)
+- `src/app/api/subjects/[id]/route.ts` - GET publico (sin auth) que consume el alumno en /s/[subject_id]
+- `src/app/api/subjects/[id]/enroll/route.ts` - Registra un alumno anonimo (uuid en localStorage) como inscripto en una materia
+- `src/app/profesor/materias/[id]/page.tsx` - Pagina de detalle de una materia (server component, auth + ownership check)
+- `src/app/profesor/materias/[id]/MateriaDetail.tsx` - UI del detalle: material, alumnos inscriptos, upload/reemplazo de PDF, analisis por materia
+- `src/components/professor/` - Componentes compartidos entre ProfesorDashboard y MateriaDetail: PillToggle, StatCard, StarRating, ProfesorChat, types
 - `src/lib/prompts.ts` - Prompts del tutor y evaluador
-- `src/lib/session-store.ts` - Almacenamiento de sesiones (localStorage)
+- `src/lib/session-store.ts` - Almacenamiento de sesiones (localStorage) + getOrCreateAnonId (id anonimo persistente para enrollments)
 - `src/lib/supabase.ts` - Cliente de Supabase
+- `src/lib/supabase-server.ts` - Cliente Supabase SSR (con cookies, para Server Components y Route Handlers)
 - `src/lib/sanitize.ts` - Sanitizacion de PII con Gemini antes de guardar
+- `src/lib/pdf.ts` - parsePdf() compartido (pdf2json) entre upload, creacion de materia y reemplazo de material
+- `src/lib/gemini-analysis.ts` - MODELS/generateWithFallback/buildFilterKey compartidos entre /api/summary y /api/professor/subjects/[id]/summary
+- `src/lib/subjects.ts` - getOwnedSubject(): trae una materia y valida que pertenezca al profesor logueado
 - `src/components/ChatWindow.tsx` - Componente del chat
 - `src/components/Timer.tsx` - Timer de la sesion
 
@@ -70,6 +82,8 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 15. **Login docente con magic link** - La profesora entra a /profesor/login, ingresa su email y recibe un link de acceso sin contrasena (Supabase Auth OTP). El dashboard muestra el email logueado y boton de cerrar sesion. Reemplaza el sistema anterior de PROFESOR_KEY en URL.
 16. **Sistema de materias** - La profesora crea materias desde el dashboard (nombre + PDF). Cada materia genera un link unico `/s/[id]` para compartir con alumnos. El alumno que entra por ese link tiene el PDF pre-cargado y solo elige el tiempo. Las sesiones quedan taggeadas con professor_id y subject_id.
 17. **UX sesion mejorada** - Timer fijo en header sticky (siempre visible al scrollear). Boton "Terminar sesion" bajado a la barra inferior (siempre accesible sin scrollear).
+18. **Enrolamiento anonimo por QR/link** - El profesor genera un QR por materia desde "Mis materias". Cada alumno que entra por el link/QR queda registrado con un id anonimo (uuid en localStorage) en la tabla `enrollments`. El dashboard muestra la cantidad de alumnos inscriptos por materia.
+19. **Pagina de detalle de materia** (`/profesor/materias/[id]`) - Al abrir una materia se ve: material cargado (o dropzone para subirlo/reemplazarlo en cualquier momento, no solo al crear), cantidad de alumnos inscriptos, y el analisis de feedback de Gemini **scoped por subject_id** (no por nombre de PDF). Esto resuelve el bug donde una materia que reutiliza el nombre de un PDF suelto viejo (flujo legacy) mezclaba sus sesiones con las de ese PDF en la vista de "Analisis por unidad". Mismos filtros demograficos, cache y chat de repreguntas que la vista legacy, pero aislados por materia.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -133,12 +147,12 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Historial de sesiones por estudiante
 - [ ] Mejorar parsing de PDFs escaneados (OCR)
 - [ ] Incorporar feedback del alumno y del profesor al accionar del agente tutor
-- [ ] Agregar professor_id al cache de unit_analysis (hoy el cache es global por pdf_name+filter_key; si hay multiples profes con el mismo PDF, comparten cache)
+- [ ] Agregar professor_id al cache de unit_analysis del flujo LEGACY (pdf_name+filter_key); el cache scoped por materia ya no tiene este problema porque usa subject_id
 - [ ] Que Guada mergee el PR de `Martina` a `main` (login docente + sistema de materias) — es lo unico que falta para que funcione en produccion real, no solo en preview
 - [ ] Una vez mergeado: probar el flujo completo del alumno via /s/[subject_id] y el login docente en produccion (`socratesai-two.vercel.app`)
-- [ ] Verificar que las tablas `subjects` y las columnas `sessions.professor_id`/`sessions.subject_id` existan en el Supabase de Martu (probablemente ya corridas, confirmar)
 - [ ] Sacar el `console.error` de diagnostico agregado en `src/app/profesor/login/actions.ts` una vez confirmado que el login anda estable en produccion
-- [ ] Definir alcance de QR + enrolamiento de alumnos por materia (pausado sin decidir): opciones eran (a) solo QR del link existente, (b) QR + conteo anonimo de alumnos distintos via ID persistente en localStorage, (c) QR + registro con nombre/email — esta ultima rompe el principio de anonimizacion del proyecto, requeriria discutirlo antes
+- [ ] Correr en Supabase la migracion SQL de la sesion de hoy (columna `subject_id` + indice unico en `unit_analysis`) si no se corrio todavia — necesaria para que `/api/professor/subjects/[id]/summary` funcione
+- [ ] Extender `unit_feedback` (o el endpoint `/api/feedback`) para poder asociar el feedback del profesor a un `subject_id` directamente, en vez de solo a `pdf_name` — hoy la pagina de detalle de materia sigue mandando `pdf_name` porque el endpoint no acepta otra cosa
 
 ---
 
@@ -376,6 +390,33 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 - Que Guada mergee el Pull Request de `Martina` a `main`
 - Confirmar que las tablas/columnas de Supabase (`subjects`, `sessions.professor_id`, `sessions.subject_id`) existan en el Supabase de Martu
 - Probar el flujo completo (login docente + `/s/[subject_id]`) en produccion una vez mergeado
+
+### 2026-07-22 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Diagnosticado el 404 del magic link en preview: `NEXT_PUBLIC_SITE_URL` fijo a produccion + `main` sin el callback (branch `Martina` sin mergear) redirigia siempre a una ruta inexistente en produccion. Resuelto para poder probar sin depender de Guada editando manualmente el `redirect_to` del link crudo del mail hacia la URL de preview (ya estaba en la whitelist de Supabase Auth)
+- Probado el flujo completo de enrolamiento por QR/link (feature del commit anterior, `7dfcb66`): confirmado en Supabase que `enrollments`, `subjects` y `sessions` (con `subject_id`/`professor_id`) se completan correctamente
+- Diagnosticado por que la sesion de prueba no aparecia bien en el dashboard docente: no era `professor_summary` nulo, sino que la vista de "Analisis por unidad" agrupa por `pdf_name` normalizado e ignora `subject_id` — al reusar una materia el nombre de un PDF suelto viejo, sus sesiones quedaban mezcladas con las de ese PDF
+- Implementada pagina de detalle de materia `/profesor/materias/[id]` con analisis **scoped por subject_id** (no por pdf_name), material del listado "Mis materias" ahora es clickeable
+- Agregado endpoint `PUT /api/professor/subjects/[id]` para subir/reemplazar el material de una materia ya creada (antes solo se podia cargar PDF al crearla)
+- Agregado endpoint `GET /api/professor/subjects/[id]/summary`, fork de `/api/summary` pero filtrando `sessions` por `subject_id` en vez de `pdf_name`; mismos filtros demograficos, misma logica de cache
+- Extraido `parsePdf()` duplicado (upload viejo + creacion de materia) a `src/lib/pdf.ts`; extraidos `MODELS`/`generateWithFallback`/`buildFilterKey` de `/api/summary` a `src/lib/gemini-analysis.ts`; nuevo `src/lib/subjects.ts` con `getOwnedSubject()` para el ownership check
+- Extraidos `PillToggle`, `StatCard`, `StarRating`, `ProfesorChat` de `ProfesorDashboard.tsx` a `src/components/professor/`, compartidos ahora entre el dashboard legacy y la pagina nueva de materia
+
+**Problemas encontrados:**
+- `npx next build` local falla en el prerender de `/_global-error` / `/_not-found` con `Invariant: Expected workStore to be initialized` — confirmado con `git stash` que este error **ya existia antes de esta sesion** (pasa igual con el codigo original de `main`/`Martina` sin tocar). No relacionado a los cambios de hoy; no se investigo mas a fondo porque no bloquea el trabajo (Vercel builda distinto) y la maquina local de Martina no soporta bien correr `npm run dev` para diagnosticar a fondo. Pendiente revisar si molesta en el futuro.
+
+**Decisiones de diseno:**
+- Se decidio NO tocar `/api/professor/units` ni la logica de negocio de `/api/summary` (vista legacy por pdf_name): quedan intactas para las sesiones sueltas sin materia; el analisis por materia vive en un endpoint y cache separados
+- Cache de analisis por materia: se agrego columna `subject_id` (nullable) a `unit_analysis` + un indice unico nuevo `UNIQUE(subject_id, filter_key)` que convive con el `UNIQUE(pdf_name, filter_key)` existente (en Postgres, multiples NULLs no colisionan bajo un indice unico, asi que las filas legacy no se ven afectadas)
+- Reemplazo de PDF de una materia se permite siempre, aunque ya tenga uno cargado — se acepta que la vista legacy por pdf_name pueda fragmentarse en ese caso (no se resuelve aca); la vista nueva por materia no sufre este problema porque filtra por subject_id, que no cambia al reemplazar el PDF
+- Pagina de detalle de materia es una pagina propia (`/profesor/materias/[id]`), no un modal, para dejar lugar a crecer (ej. lista de sesiones de esa materia) sin apilar mas modales sobre el dashboard
+
+**Cambios en Supabase requeridos (pendiente correr):**
+```sql
+ALTER TABLE unit_analysis ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES subjects(id);
+CREATE UNIQUE INDEX IF NOT EXISTS unit_analysis_subject_id_filter_key_idx
+  ON unit_analysis (subject_id, filter_key);
+```
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:

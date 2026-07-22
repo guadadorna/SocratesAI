@@ -1,30 +1,39 @@
 import { supabase } from "@/lib/supabase";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAggregateSummaryPrompt } from "@/lib/prompts";
-import { normalizePdfName } from "@/lib/sanitize";
 import { generateWithFallback, buildFilterKey } from "@/lib/gemini-analysis";
+import { getOwnedSubject } from "@/lib/subjects";
 
 export const maxDuration = 60;
 
-export async function GET(request: Request) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params;
     const serverSupabase = await createSupabaseServerClient();
     const { data: userData } = await serverSupabase.auth.getUser();
-    const userId = userData.user?.id;
+    if (!userData.user) {
+      return new Response(JSON.stringify({ error: "No autenticado" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const subject = await getOwnedSubject(serverSupabase, id, userData.user.id);
+    if (!subject) {
+      return new Response(JSON.stringify({ error: "Materia no encontrada" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     const { searchParams } = new URL(request.url);
-    const pdfName = searchParams.get("pdf");
     const careersParam = searchParams.get("careers");
     const yearsParam = searchParams.get("years");
     const gendersParam = searchParams.get("genders");
     const regenerate = searchParams.get("regenerate") === "true";
-
-    if (!pdfName) {
-      return new Response(JSON.stringify({ error: "Falta el parámetro pdf" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
-    }
 
     const careers = careersParam ? careersParam.split(",").filter(Boolean) : [];
     const years = yearsParam
@@ -32,16 +41,15 @@ export async function GET(request: Request) {
       : [];
     const genders = gendersParam ? gendersParam.split(",").filter(Boolean) : [];
 
-    const normalizedPdfName = normalizePdfName(pdfName);
-    const baseName = normalizedPdfName.replace(/\.pdf$/i, "");
     const filterKey = buildFilterKey(careers, years, genders);
+    const pdfName = subject.pdf_name ?? subject.name;
 
     // Servir desde caché si existe y no se pidió regenerar
     if (!regenerate) {
       const { data: cached } = await supabase
         .from("unit_analysis")
         .select("summary, recommendations, session_count, demographics")
-        .eq("pdf_name", normalizedPdfName)
+        .eq("subject_id", id)
         .eq("filter_key", filterKey)
         .single();
       if (cached) {
@@ -61,14 +69,9 @@ export async function GET(request: Request) {
     let query = supabase
       .from("sessions")
       .select("professor_summary, duration_minutes, mode, gender, career, year")
-      .or(`pdf_name.eq.${normalizedPdfName},pdf_name.ilike.${baseName}_%`)
+      .eq("subject_id", id)
       .not("professor_summary", "is", null);
 
-    if (userId) {
-      query = query.or(`professor_id.eq.${userId},professor_id.is.null`);
-    }
-
-    // Supabase filter builder is chainable — TypeScript infers the type correctly
     if (careers.length > 0) query = query.in("career", careers);
     if (years.length > 0) query = query.in("year", years);
     if (genders.length > 0) query = query.in("gender", genders);
@@ -76,7 +79,7 @@ export async function GET(request: Request) {
     const { data, error } = await query;
 
     if (error) {
-      console.error("[summary] Error de Supabase:", error);
+      console.error("[professor/subjects/summary] Error de Supabase:", error);
       return new Response(JSON.stringify({ error: "Error al leer las sesiones" }), {
         status: 500,
         headers: { "Content-Type": "application/json" },
@@ -136,7 +139,8 @@ export async function GET(request: Request) {
     // Guardar en caché para futuras visitas
     await supabase.from("unit_analysis").upsert(
       {
-        pdf_name: normalizedPdfName,
+        subject_id: id,
+        pdf_name: pdfName,
         filter_key: filterKey,
         summary,
         recommendations: recommendations ?? null,
@@ -144,7 +148,7 @@ export async function GET(request: Request) {
         demographics,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "pdf_name,filter_key" }
+      { onConflict: "subject_id,filter_key" }
     );
 
     return new Response(
@@ -152,7 +156,7 @@ export async function GET(request: Request) {
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
-    console.error("[summary] Error inesperado:", error);
+    console.error("[professor/subjects/summary] Error inesperado:", error);
     const errorMessage = error instanceof Error ? error.message : "Error desconocido";
     return new Response(
       JSON.stringify({ error: `Error al generar el resumen: ${errorMessage}` }),
