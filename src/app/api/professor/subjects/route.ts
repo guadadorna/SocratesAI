@@ -49,7 +49,18 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: "Error al leer materias" }, { status: 500 });
-  return NextResponse.json(data ?? []);
+
+  const subjects = await Promise.all(
+    (data ?? []).map(async (subject) => {
+      const { count } = await supabase
+        .from("enrollments")
+        .select("*", { count: "exact", head: true })
+        .eq("subject_id", subject.id);
+      return { ...subject, enrolled_count: count ?? 0 };
+    })
+  );
+
+  return NextResponse.json(subjects);
 }
 
 export async function POST(request: Request) {

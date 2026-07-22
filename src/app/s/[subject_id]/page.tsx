@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { v4 as uuidv4 } from "uuid";
-import { saveSession } from "@/lib/session-store";
+import { saveSession, getOrCreateAnonId } from "@/lib/session-store";
 
 const TIME_OPTIONS = [5, 10, 15, 20, 30];
 
@@ -30,6 +30,16 @@ export default function SubjectEntryPage() {
           return;
         }
         const data = await res.json();
+
+        const anonId = getOrCreateAnonId();
+        if (anonId) {
+          fetch(`/api/subjects/${subject_id}/enroll`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ anonStudentId: anonId }),
+          }).catch(() => {});
+        }
+
         if (!data.pdf_content) {
           setError("La profesora todavía no subió el material para esta materia.");
           return;

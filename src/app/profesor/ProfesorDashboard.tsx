@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import QRCode from "qrcode";
 
 interface UnitStats {
   pdf_name: string;
@@ -279,6 +280,7 @@ interface Subject {
   name: string;
   pdf_name: string | null;
   created_at: string;
+  enrolled_count?: number;
 }
 
 function MisMaterias({ professorId }: { professorId: string }) {
@@ -290,6 +292,8 @@ function MisMaterias({ professorId }: { professorId: string }) {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [qrSubject, setQrSubject] = useState<Subject | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -329,6 +333,17 @@ function MisMaterias({ professorId }: { professorId: string }) {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  const showQr = async (subject: Subject) => {
+    const url = `${window.location.origin}/s/${subject.id}`;
+    setQrSubject(subject);
+    setQrDataUrl(await QRCode.toDataURL(url, { width: 320, margin: 1 }));
+  };
+
+  const closeQr = () => {
+    setQrSubject(null);
+    setQrDataUrl(null);
   };
 
   return (
@@ -408,16 +423,57 @@ function MisMaterias({ professorId }: { professorId: string }) {
                 ) : (
                   <p className="text-xs text-amber-600">Sin material cargado</p>
                 )}
+                <p className="text-xs text-gray-400">
+                  {s.enrolled_count ?? 0} alumno{s.enrolled_count === 1 ? "" : "s"} inscripto{s.enrolled_count === 1 ? "" : "s"}
+                </p>
               </div>
-              <button
-                onClick={() => copyLink(s.id)}
-                disabled={!s.pdf_name}
-                className="flex-shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
-              >
-                {copiedId === s.id ? "¡Copiado!" : "Copiar link"}
-              </button>
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <button
+                  onClick={() => showQr(s)}
+                  disabled={!s.pdf_name}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
+                >
+                  QR
+                </button>
+                <button
+                  onClick={() => copyLink(s.id)}
+                  disabled={!s.pdf_name}
+                  className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:text-gray-300 disabled:cursor-not-allowed text-teal-700 bg-teal-50 hover:bg-teal-100"
+                >
+                  {copiedId === s.id ? "¡Copiado!" : "Copiar link"}
+                </button>
+              </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {qrSubject && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4"
+          onClick={closeQr}
+        >
+          <div
+            className="bg-white rounded-xl p-6 max-w-xs w-full text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm font-medium text-gray-900 mb-1">{qrSubject.name}</p>
+            <p className="text-xs text-gray-400 mb-4 break-all">
+              {`${window.location.origin}/s/${qrSubject.id}`}
+            </p>
+            {qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={qrDataUrl} alt={`QR de ${qrSubject.name}`} className="mx-auto rounded-lg" />
+            ) : (
+              <p className="text-sm text-gray-400">Generando QR...</p>
+            )}
+            <button
+              onClick={closeQr}
+              className="mt-4 w-full py-2 px-4 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       )}
     </div>
