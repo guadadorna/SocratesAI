@@ -86,6 +86,7 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 18. **Enrolamiento anonimo por QR/link** - El profesor genera un QR por materia desde "Mis materias". Cada alumno que entra por el link/QR queda registrado con un id anonimo (uuid en localStorage) en la tabla `enrollments`. El dashboard muestra la cantidad de alumnos inscriptos por materia.
 19. **Pagina de detalle de materia** (`/profesor/materias/[id]`) - Al abrir una materia se ve: lista de PDFs cargados (agregar nuevos o eliminar cualquiera en cualquier momento, no solo al crear), cantidad de alumnos inscriptos, y el analisis de feedback de Gemini **scoped por subject_id** (no por nombre de PDF). Esto resuelve el bug donde una materia que reutiliza el nombre de un PDF suelto viejo (flujo legacy) mezclaba sus sesiones con las de ese PDF en la vista de "Analisis por unidad". Mismos filtros demograficos, cache y chat de repreguntas que la vista legacy, pero aislados por materia.
 20. **Multiples PDFs por materia** - Una materia puede tener varios documentos (tabla `materials`, uno-a-muchos con `subjects`). El alumno sigue entrando por un unico link/QR sin elegir nada: el tutor recibe el texto concatenado de todos los PDFs de la materia. Pendiente para una fase futura (pausado, no decidido): agrupar los PDFs en "unidades" y dejar que el alumno elija cual estudiar, al estilo Moodle.
+21. **Compartir link/QR desde la pagina de materia** - Los botones "QR" y "Copiar link" no estan solo en la fila de "Mis materias": tambien aparecen en `/profesor/materias/[id]`, arriba del todo, junto al nombre de la materia.
 
 ## Anonimizacion (CRITICO)
 - Nunca se guarda nombre, email, legajo ni ningun dato personal
@@ -153,9 +154,10 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Que Guada mergee el PR de `Martina` a `main` (login docente + sistema de materias) — es lo unico que falta para que funcione en produccion real, no solo en preview
 - [ ] Una vez mergeado: probar el flujo completo del alumno via /s/[subject_id] y el login docente en produccion (`socratesai-two.vercel.app`)
 - [ ] Sacar el `console.error` de diagnostico agregado en `src/app/profesor/login/actions.ts` una vez confirmado que el login anda estable en produccion
-- [ ] Correr en Supabase la migracion SQL de la tabla `materials` (multiples PDFs por materia) — necesaria para que `/api/professor/subjects/[id]/materials` funcione y para que no desaparezca el PDF que ya tenia cada materia
 - [ ] Extender `unit_feedback` (o el endpoint `/api/feedback`) para poder asociar el feedback del profesor a un `subject_id` directamente, en vez de solo al nombre de la materia via `pdfName`
 - [ ] Definir si en el futuro hace falta agrupar los PDFs de una materia en "unidades" (estilo Moodle) y dejar que el alumno elija cual estudiar — pausado por ahora, hoy el tutor recibe el texto de todos los PDFs concatenado
+- [ ] Retomar (con otro enfoque) la idea de que Gemini sugiera cuanto debería durar la sesion: se probo e implemento el 2026-07-22 con un numero fijo de minutos "ideal" segun el material, pero se revirtio antes de commitear porque no tiene en cuenta el tiempo real disponible del alumno y podia sugerir tiempos poco realistas. Ver detalle en el registro de esa sesion antes de reintentarlo
+- [ ] A partir de ahora el foco pasa a testear y robustecer lo que ya existe (login docente, sistema de materias, QR/enrollment, pagina de materia, multi-PDF, dashboard docente) en vez de sumar features nuevas, salvo pedido explicito
 
 ---
 
@@ -414,6 +416,16 @@ ALTER TABLE unit_analysis DISABLE ROW LEVEL SECURITY;
 - `MateriaDetail.tsx`: el dropzone de "reemplazar PDF" paso a ser una lista de materiales con boton "Eliminar" por item + dropzone de "Agregar PDF" al pie
 - `src/lib/subjects.ts` (`getOwnedSubject`) y las columnas `subjects.pdf_name`/`pdf_content` quedan sin usarse desde el codigo (no se dropearon de la tabla, solo se dejo de leer/escribir ahi) — la fuente de verdad del material es la tabla `materials`
 
+**Tercera parte de la sesion — compartir link/QR desde la pagina de materia:**
+- Los botones "QR" y "Copiar link" (antes solo en la fila de "Mis materias") ahora tambien aparecen arriba en `/profesor/materias/[id]`
+- Extraida la logica (copiar al portapapeles + modal de QR con `qrcode`) a un componente compartido `src/components/professor/ShareSubjectButtons.tsx`, usado desde `MisMaterias` (en `ProfesorDashboard.tsx`) y desde `MateriaDetail.tsx`, para no duplicar el modal de QR una segunda vez
+
+**Intentado y revertido — sugerencia de tiempo con Gemini:**
+- Se implemento (prompt + endpoint + UI en `/dashboard`, `/s/[subject_id]` y la pagina de materia) que Gemini analice el material y sugiera cuantos minutos debería durar la sesion, para que no queden cortas
+- Martina pidio revertirlo antes de commitear: se dio cuenta de que la sugerencia de Gemini iba a tirar tiempos poco realistas (ej. "25 minutos que nadie tiene") y no iba a ser util tal cual estaba planteado — el diseño (un numero fijo de minutos "ideales" segun la cantidad de conceptos del material, sin tener en cuenta cuanto tiempo tiene realmente disponible el alumno) no resuelve el problema real
+- Revertido con `git checkout` antes de cualquier commit; no quedo rastro en el codigo ni en Supabase (no se llego a correr la migracion de `subjects.suggested_minutes`)
+- Si se retoma en el futuro, repensar el enfoque: quizas mostrar un rango en vez de un numero fijo, o dejar que el alumno diga cuanto tiempo tiene y que el tutor ajuste la profundidad (algo que el prompt del tutor ya hace parcialmente, ver `conceptosSegunTiempo` en `getTutorPrompt`), en vez de que Gemini imponga un tiempo "ideal" que no es realista
+
 **Problemas encontrados:**
 - `npx next build` local falla en el prerender de `/_global-error` / `/_not-found` con `Invariant: Expected workStore to be initialized` — confirmado con `git stash` que este error **ya existia antes de esta sesion** (pasa igual con el codigo original de `main`/`Martina` sin tocar). No relacionado a los cambios de hoy; no se investigo mas a fondo porque no bloquea el trabajo (Vercel builda distinto) y la maquina local de Martina no soporta bien correr `npm run dev` para diagnosticar a fondo. Pendiente revisar si molesta en el futuro.
 
@@ -431,7 +443,7 @@ ALTER TABLE unit_analysis ADD COLUMN IF NOT EXISTS subject_id UUID REFERENCES su
 CREATE UNIQUE INDEX IF NOT EXISTS unit_analysis_subject_id_filter_key_idx
   ON unit_analysis (subject_id, filter_key);
 
--- Pendiente correr: tabla materials (multiples PDFs por materia)
+-- Corrido por Martina el 2026-07-22 (tabla materials, multiples PDFs por materia)
 CREATE TABLE IF NOT EXISTS materials (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   subject_id UUID NOT NULL REFERENCES subjects(id),
