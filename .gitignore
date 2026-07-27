@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# eval harness (herramienta local de medición, no es parte de la app)
+/scripts/eval-harness/results/
+/scripts/eval-harness/config.local.json
+/scripts/eval-harness/manual-sessions/

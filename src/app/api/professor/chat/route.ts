@@ -1,9 +1,8 @@
 import { google } from "@ai-sdk/google";
 import { streamText } from "ai";
+import { TUTOR_MODELS, TEMPERATURES } from "@/lib/gemini-analysis";
 
 export const maxDuration = 60;
-
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 function getSystemPrompt(pdfName: string, analysisContext: string): string {
   return `Sos un asistente analítico de SocratesAI que ayuda a docentes a interpretar el rendimiento de sus alumnos.
@@ -37,12 +36,13 @@ export async function POST(request: Request) {
     const systemPrompt = getSystemPrompt(pdfName, analysisContext);
     let lastError: Error | null = null;
 
-    for (const modelName of MODELS) {
+    for (const modelName of TUTOR_MODELS) {
       try {
         const result = streamText({
           model: google(modelName),
           system: systemPrompt,
           messages,
+          temperature: TEMPERATURES.analysis,
           maxRetries: 0,
         });
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       } catch (error) {
         lastError = error as Error;
         console.warn(`[professor/chat] Modelo ${modelName} falló:`, (error as Error).message);
-        const isLastModel = modelName === MODELS[MODELS.length - 1];
+        const isLastModel = modelName === TUTOR_MODELS[TUTOR_MODELS.length - 1];
         if (isLastModel) throw error;
       }
     }

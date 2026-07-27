@@ -61,6 +61,8 @@ El tutor:
 - `src/lib/subjects.ts` - getOwnedSubject(): trae una materia y valida que pertenezca al profesor logueado
 - `src/components/ChatWindow.tsx` - Componente del chat
 - `src/components/Timer.tsx` - Timer de la sesion
+- `docs/llm-pipeline.md` - Auditoria en criollo de que le pedimos a Gemini en cada paso (tutor, evaluacion individual, analisis agregado), que parametros usa, formato de salida esperado y puntos fragiles conocidos (parseo por delimitador sin validacion, sin temperature seteada, etc)
+- `scripts/eval-harness/` - Herramienta local (no es parte de la app, no toca Supabase) para simular sesiones sinteticas (alumno bueno/confundido/que no leyo) contra el tutor real y medir volatilidad del feedback entre corridas. Tambien soporta reproducir sesiones reales jugadas a mano (`--replay-transcript`). Ver `scripts/eval-harness/README.md`
 
 ## Flujo de datos
 Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /feedback (guardar en Supabase + mostrar feedback)
@@ -158,6 +160,10 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Definir si en el futuro hace falta agrupar los PDFs de una materia en "unidades" (estilo Moodle) y dejar que el alumno elija cual estudiar — pausado por ahora, hoy el tutor recibe el texto de todos los PDFs concatenado
 - [ ] Retomar (con otro enfoque) la idea de que Gemini sugiera cuanto debería durar la sesion: se probo e implemento el 2026-07-22 con un numero fijo de minutos "ideal" segun el material, pero se revirtio antes de commitear porque no tiene en cuenta el tiempo real disponible del alumno y podia sugerir tiempos poco realistas. Ver detalle en el registro de esa sesion antes de reintentarlo
 - [ ] A partir de ahora el foco pasa a testear y robustecer lo que ya existe (login docente, sistema de materias, QR/enrollment, pagina de materia, multi-PDF, dashboard docente) en vez de sumar features nuevas, salvo pedido explicito
+- [ ] Habilitar facturacion en el proyecto de Google AI Studio asociado a `GOOGLE_GENERATIVE_AI_API_KEY` (aistudio.google.com/apikey) — es la causa real de que el fallback a `gemini-2.5-flash-lite` se dispare tan seguido (cuota del free tier, no fallas del modelo). Accion manual de Martina, no de codigo
+- [ ] Una vez habilitada la facturacion: correr `scripts/eval-harness/` con volumen real (varias personas x varias sesiones, comparando `--temperature 1` contra el default nuevo) + un par de sesiones manuales reales via `--replay-transcript` jugadas en la preview de Vercel (no local, por los problemas conocidos corriendo el host), para confirmar que bajo la volatilidad medida
+- [ ] Probar Gemini 3 (`gemini-3-flash-preview`, `gemini-3-pro-preview` — ya soportado por `@ai-sdk/google@3.0.63` instalado, sin actualizar nada) con el harness (`--models`) antes de promoverlo a produccion; se pospuso por ser todos modelos `-preview`
+- [ ] Seguir con los puntos fragiles que quedan documentados en `docs/llm-pipeline.md`: parseo por delimitador sin validacion/reintento (`===RESUMEN_PROFESOR===`, `===RECOMENDACIONES===`), el tutor sin verificacion en runtime de "nunca validar una respuesta incorrecta", `studentFeedback` sin persistir, y la consistencia de la primera pregunta del tutor entre alumnos (bajar la temperatura ayuda parcial, no la fija — la opcion mas robusta implicaria cachear la apertura por materia, requeriria persistencia nueva, a confirmar)
 
 ---
 
@@ -460,6 +466,40 @@ FROM subjects
 WHERE pdf_name IS NOT NULL AND pdf_content IS NOT NULL;
 ```
 
+### 2026-07-27 - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Diagnosticado el pipeline de feedback actual: ninguna llamada a Gemini (tutor, evaluacion, analisis agregado) tiene `temperature` seteada; el parseo por delimitador de texto (`===RESUMEN_PROFESOR===` en evaluate/route.ts, `===RECOMENDACIONES===` en el analisis agregado) falla en silencio si el modelo no lo incluye; y el `studentFeedback` generado en `/api/evaluate` nunca se persiste en Supabase (solo el `professor_summary`)
+- Creado `docs/llm-pipeline.md`: documento de auditoria en criollo de que le pedimos a Gemini en cada paso, con que modelo/parametros, que formato de salida se espera y los puntos fragiles de arriba
+- Creado `scripts/eval-harness/`: herramienta local (no es parte de la app, no toca Supabase, todo el output queda en archivos locales gitignoreados bajo `results/`) que reusa literalmente `getTutorPrompt`, `getCombinedEvaluationPrompt` y `generateWithFallback` de produccion para: (1) simular sesiones completas con un "alumno sintetico" (personas `alumno_ejemplar`, `alumno_confundido`, `alumno_no_leyo`, `alumno_mixto`) conversando con el tutor real, y (2) correr el paso de evaluacion N veces sobre el mismo transcript para aislar la volatilidad propia del prompt de evaluacion. Ver `scripts/eval-harness/README.md` para el uso completo
+- Agregado modo `--replay-transcript` al harness para correr el mismo pipeline de medicion sobre una sesion real jugada a mano (copiando el JSON de `localStorage['socrates_session']`), y poder comparar la volatilidad sintetica contra la real
+- Agregado `tsx` como devDependency (unico requisito nuevo; confirmado que resuelve el alias `@/*` de tsconfig sin configuracion adicional) y el script `npm run eval:harness`
+- Corridos varios smoke tests del harness (con material de respaldo y con un PDF real) verificando: transcript con el mismo shape que `SessionData.messages`, fallback de modelo funcionando ante error de cuota, y metricas/`summary.md` generados correctamente
+
+**Problemas encontrados:**
+- Ninguno bloqueante. Un hallazgo real (no un bug del harness) durante las pruebas: en una corrida el tutor valido como "excelente" una respuesta del alumno sintetico que en realidad invertia el orden de la resta en Diferencias en Diferencias — viola la regla mas critica del propio prompt del tutor ("nunca validar una respuesta incorrecta"). Tambien se vio que el LLM a veces devuelve las 5 secciones del feedback como prosa corrida, sin ningun heading ni negrita, pese a que el prompt se lo pide explicitamente — esto es justamente el tipo de volatilidad que motivo este trabajo
+
+**Decisiones de diseno:**
+- Fase de solo medicion: no se toco ningun prompt de produccion ni se agrego infraestructura nueva en Supabase en esta sesion. El plan (a pedido explicito de Martina) fue primero instrumentar y medir, y recien despues decidir que ajustar
+- El harness duplica (con comentarios de "mantener sincronizado") dos piezas de logica que viven dentro de route handlers y no se pueden importar: el parseo de `evaluate/route.ts` y el texto de cierre de `chat/route.ts`
+- Las metricas de volatilidad son deliberadamente simples (word count, presencia de secciones por palabra clave, tasa de exito del delimitador, extracto de "a reforzar" lado a lado) — sin scoring tipo LLM-as-judge por ahora, a pedido explicito
+
+### 2026-07-27 (segunda parte) - Sesion con Martina (branch Martina)
+**Lo que se hizo:**
+- Investigado (con research real, no supuesto): `@ai-sdk/google@3.0.63` (ya instalado) soporta Gemini 3 (`gemini-3-flash-preview`, `gemini-3-pro-preview`, `gemini-3.1-*`) sin necesidad de actualizar ningun paquete; y confirmado que el error de fallback que veiamos (`Quota exceeded ... free_tier_requests, limit: 20`) es especificamente el free tier de Google AI Studio, no una falla real del modelo — habilitar facturacion (accion manual en aistudio.google.com/apikey, no hace falta Vertex AI) deberia resolver de raiz la caida de calidad que Martina notaba en el fallback
+- Centralizados los modelos y agregada `temperature` explicita en `src/lib/gemini-analysis.ts`: `TUTOR_MODELS` (gemini-2.5-flash → gemini-2.5-flash-lite, `temperature: 0.4`) para el tutor conversacional, `ANALYSIS_MODELS` (gemini-2.5-pro → gemini-2.5-flash → gemini-2.5-flash-lite, `temperature: 0.2`) para evaluacion individual y analisis agregado — se paga mas por `gemini-2.5-pro` donde es el feedback real que ven alumno y profesora, se mantiene flash (mas barato/rapido) en la conversacion turno a turno
+- Eliminadas las 3 copias duplicadas de `MODELS`/`generateWithFallback` que existian en `evaluate/route.ts`, `chat/route.ts` y `professor/chat/route.ts` — ahora los tres importan de `gemini-analysis.ts`
+- `generateWithFallback()` ahora acepta `options?: { models?, temperature? }` (default = `ANALYSIS_MODELS`/0.2, asi `/api/summary` y `/api/professor/subjects/[id]/summary` quedan cubiertos sin tocarlos)
+- Extendido `scripts/eval-harness/` con overrides `--temperature` y `--models` (en `config.ts`, `session-runner.ts`, `evaluate-runner.ts`, `replay-runner.ts`) para poder A/B testear variantes (incluida una futura prueba de Gemini 3) sin tocar codigo de produccion
+- Actualizado `docs/llm-pipeline.md`: punto fragil #1 (sin temperature) y #5 (duplicacion) marcados como resueltos, agregada nota sobre Gemini 3 pospuesto y sobre la consistencia de la apertura del tutor (pendiente)
+- Verificado `npx tsc --noEmit` y `npx eslint` limpios en todos los archivos tocados
+
+**Decisiones tomadas con Martina:**
+- No incorporar Gemini 3 todavia (son todos `-preview`, riesgo de cambios sin aviso de Google) — probarlo primero con volumen via el harness en una sesion futura
+- Separar modelo por tarea: tutor en familia flash, evaluacion/analisis en `gemini-2.5-pro` (Martina confirmo que pagar mas por esto no es problema)
+- La consistencia de la primera pregunta del tutor entre alumnos queda pospuesta (prioridad: bajar la volatilidad general primero); la temperatura mas baja ayuda parcialmente pero no la garantiza — la opcion mas robusta (cachear la apertura por materia) implicaria persistencia nueva, no se implemento
+
+**Pendiente inmediato:** que Martina habilite facturacion en Google AI Studio, y despues correr el harness con volumen + un par de sesiones manuales en la preview de Vercel para confirmar que la volatilidad bajo de verdad.
+
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:
 1. Actualiza este archivo al final de cada sesion con lo que se hizo
@@ -467,3 +507,4 @@ Cuando trabajes en este proyecto:
 3. Agrega nuevos pendientes que surjan de la conversacion
 4. Registra problemas y soluciones para no repetir errores
 5. Si cambias algo del stack o arquitectura, actualiza las secciones correspondientes
+6. Si tocas `src/lib/prompts.ts` o la logica de llamadas a Gemini (fallback de modelos, parseo de delimitadores), actualiza tambien `docs/llm-pipeline.md`

@@ -1,18 +1,34 @@
 import { google } from "@ai-sdk/google";
 import { generateText } from "ai";
 
-export const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+// Tutor: conversacional, streaming, se llama muchas veces por sesión — prioriza velocidad/costo.
+export const TUTOR_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
+// Evaluación y análisis agregado: se llaman una sola vez por sesión/unidad y son el feedback
+// real que ven alumno y profesora — prioriza calidad, gemini-2.5-pro como modelo principal.
+export const ANALYSIS_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
-export async function generateWithFallback(prompt: string): Promise<string> {
-  for (const modelName of MODELS) {
+export const TEMPERATURES = {
+  tutor: 0.4,
+  analysis: 0.2,
+} as const;
+
+export async function generateWithFallback(
+  prompt: string,
+  options?: { models?: string[]; temperature?: number }
+): Promise<string> {
+  const models = options?.models ?? ANALYSIS_MODELS;
+  const temperature = options?.temperature ?? TEMPERATURES.analysis;
+
+  for (const modelName of models) {
     try {
       const { text } = await generateText({
         model: google(modelName),
         prompt,
+        temperature,
       });
       return text;
     } catch (error) {
-      const isLastModel = modelName === MODELS[MODELS.length - 1];
+      const isLastModel = modelName === models[models.length - 1];
       if (isLastModel) throw error;
     }
   }
