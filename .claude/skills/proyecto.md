@@ -57,7 +57,7 @@ El tutor:
 - `src/lib/supabase-server.ts` - Cliente Supabase SSR (con cookies, para Server Components y Route Handlers)
 - `src/lib/sanitize.ts` - Sanitizacion de PII con Gemini antes de guardar
 - `src/lib/pdf.ts` - parsePdf() compartido (pdf2json) entre upload, creacion de materia y reemplazo de material
-- `src/lib/gemini-analysis.ts` - MODELS/generateWithFallback/buildFilterKey compartidos entre /api/summary y /api/professor/subjects/[id]/summary
+- `src/lib/gemini-analysis.ts` - TUTOR_MODELS/ANALYSIS_MODELS/TEMPERATURES/generateWithFallback/buildFilterKey; fuente unica de verdad de que modelo y temperature usa cada llamada a Gemini (tutor vs evaluacion/analisis), compartida por /api/chat, /api/evaluate, /api/professor/chat, /api/summary y /api/professor/subjects/[id]/summary
 - `src/lib/subjects.ts` - getOwnedSubject(): trae una materia y valida que pertenezca al profesor logueado
 - `src/components/ChatWindow.tsx` - Componente del chat
 - `src/components/Timer.tsx` - Timer de la sesion
@@ -160,8 +160,7 @@ Los tres comandos son necesarios: los primeros dos sincronizan la branch local, 
 - [ ] Definir si en el futuro hace falta agrupar los PDFs de una materia en "unidades" (estilo Moodle) y dejar que el alumno elija cual estudiar — pausado por ahora, hoy el tutor recibe el texto de todos los PDFs concatenado
 - [ ] Retomar (con otro enfoque) la idea de que Gemini sugiera cuanto debería durar la sesion: se probo e implemento el 2026-07-22 con un numero fijo de minutos "ideal" segun el material, pero se revirtio antes de commitear porque no tiene en cuenta el tiempo real disponible del alumno y podia sugerir tiempos poco realistas. Ver detalle en el registro de esa sesion antes de reintentarlo
 - [ ] A partir de ahora el foco pasa a testear y robustecer lo que ya existe (login docente, sistema de materias, QR/enrollment, pagina de materia, multi-PDF, dashboard docente) en vez de sumar features nuevas, salvo pedido explicito
-- [ ] Habilitar facturacion en el proyecto de Google AI Studio asociado a `GOOGLE_GENERATIVE_AI_API_KEY` (aistudio.google.com/apikey) — es la causa real de que el fallback a `gemini-2.5-flash-lite` se dispare tan seguido (cuota del free tier, no fallas del modelo). Accion manual de Martina, no de codigo
-- [ ] Una vez habilitada la facturacion: correr `scripts/eval-harness/` con volumen real (varias personas x varias sesiones, comparando `--temperature 1` contra el default nuevo) + un par de sesiones manuales reales via `--replay-transcript` jugadas en la preview de Vercel (no local, por los problemas conocidos corriendo el host), para confirmar que bajo la volatilidad medida
+- [ ] Correr `scripts/eval-harness/` con volumen real (varias personas x varias sesiones, comparando `--temperature 1` contra el default nuevo) + un par de sesiones manuales reales via `--replay-transcript` jugadas en la preview de Vercel (no local, por los problemas conocidos corriendo el host), para confirmar que bajo la volatilidad medida — ya con facturacion habilitada, tener en cuenta que cada corrida consume esa cuenta (gemini-2.5-pro es mas caro por token que flash)
 - [ ] Probar Gemini 3 (`gemini-3-flash-preview`, `gemini-3-pro-preview` — ya soportado por `@ai-sdk/google@3.0.63` instalado, sin actualizar nada) con el harness (`--models`) antes de promoverlo a produccion; se pospuso por ser todos modelos `-preview`
 - [ ] Seguir con los puntos fragiles que quedan documentados en `docs/llm-pipeline.md`: parseo por delimitador sin validacion/reintento (`===RESUMEN_PROFESOR===`, `===RECOMENDACIONES===`), el tutor sin verificacion en runtime de "nunca validar una respuesta incorrecta", `studentFeedback` sin persistir, y la consistencia de la primera pregunta del tutor entre alumnos (bajar la temperatura ayuda parcial, no la fija — la opcion mas robusta implicaria cachear la apertura por materia, requeriria persistencia nueva, a confirmar)
 
@@ -499,6 +498,8 @@ WHERE pdf_name IS NOT NULL AND pdf_content IS NOT NULL;
 - La consistencia de la primera pregunta del tutor entre alumnos queda pospuesta (prioridad: bajar la volatilidad general primero); la temperatura mas baja ayuda parcialmente pero no la garantiza — la opcion mas robusta (cachear la apertura por materia) implicaria persistencia nueva, no se implemento
 
 **Pendiente inmediato:** que Martina habilite facturacion en Google AI Studio, y despues correr el harness con volumen + un par de sesiones manuales en la preview de Vercel para confirmar que la volatilidad bajo de verdad.
+
+**Actualizacion (mismo dia):** Martina habilito facturacion en Google AI Studio (cargo USD 25). Queda confirmado que las corridas del harness consumen esa misma cuenta de facturacion (llaman a la API real de Gemini, no hay nada gratis/simulado del lado de Google) — tenerlo en cuenta si se corren volumenes grandes de pruebas sinteticas, sobre todo ahora que la evaluacion usa `gemini-2.5-pro` (mas caro por token que flash).
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:
