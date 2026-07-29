@@ -41,7 +41,8 @@ También podés crear `config.local.json` (gitignoreado) en esta carpeta con ove
 ### Personas disponibles (`personas.ts`)
 
 - `alumno_ejemplar` — leyó el material, responde con precisión.
-- `alumno_confundido` — leyó el material pero mezcla conceptos relacionados (errores concretos, no vagos).
+- `alumno_confundido` — leyó el material pero mezcla conceptos relacionados (errores concretos, no vagos). Se confunde puntualmente y se autocorrige rápido (a lo sumo un turno más) — no sirve para probar cómo reacciona el tutor ante una confusión sostenida.
+- `alumno_confuso_ofuscado` — se traba en un concepto puntual durante varios turnos seguidos (no se autocorrige rápido ni "adivina" la respuesta), y se muestra cada vez más frustrado *con el concepto* a medida que no logra entenderlo — sin llegar a quejarse del tutor ni pedir cerrar la sesión (eso ya lo cubre reproducir la queja explícita a mano). Pensada para probar si el tutor adapta el ritmo/profundidad ante confusión sostenida, no solo ante rachas de acierto o hartazgo explícito.
 - `alumno_no_leyo` — **no recibe el contenido del PDF**, para forzar respuestas vagas reales en vez de que el modelo "actúe" mal con el material completo a la vista.
 - `alumno_mixto` — arranca débil en cada concepto y mejora tras la repregunta del tutor.
 
