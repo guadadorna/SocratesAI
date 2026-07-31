@@ -9,7 +9,7 @@ export const ANALYSIS_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.
 
 export const TEMPERATURES = {
   tutor: 0.4,
-  analysis: 0.2,
+  analysis: 0,
 } as const;
 
 export async function generateWithFallback(

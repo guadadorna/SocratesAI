@@ -15,6 +15,10 @@ export interface HarnessConfig {
   /** Overrides de A/B testing (tutor + evaluación). null = usar los defaults de producción. */
   temperature: number | null;
   models: string[] | null;
+  /** Si es true, además de tutor+evaluación corre getAggregateSummaryPrompt sobre los resúmenes generados. */
+  aggregate: boolean;
+  /** Cuántas veces se corre el paso de agregado sobre el mismo set de resúmenes, para medir su propia volatilidad. */
+  aggregateRepeats: number;
 }
 
 function parseArgs(argv: string[]): Partial<HarnessConfig> {
@@ -46,6 +50,8 @@ function parseArgs(argv: string[]): Partial<HarnessConfig> {
   if (typeof raw["replay-transcript"] === "string") parsed.replayTranscript = raw["replay-transcript"];
   if (typeof raw.temperature === "string") parsed.temperature = Number(raw.temperature);
   if (typeof raw.models === "string") parsed.models = raw.models.split(",").map((s) => s.trim()).filter(Boolean);
+  if (raw.aggregate === true) parsed.aggregate = true;
+  if (typeof raw["aggregate-repeats"] === "string") parsed.aggregateRepeats = Number(raw["aggregate-repeats"]);
   return parsed;
 }
 
@@ -79,6 +85,9 @@ export function resolveConfig(argv: string[]): HarnessConfig {
     if (merged.turns < 1) throw new Error("[eval-harness] --turns debe ser >= 1.");
   }
   if (merged.evalRepeats < 1) throw new Error("[eval-harness] --eval-repeats debe ser >= 1.");
+  if (merged.aggregate && merged.aggregateRepeats < 1) {
+    throw new Error("[eval-harness] --aggregate-repeats debe ser >= 1.");
+  }
 
   return merged;
 }
@@ -86,15 +95,17 @@ export function resolveConfig(argv: string[]): HarnessConfig {
 export interface CallEstimate {
   tutorAndStudent: number;
   evaluation: number;
+  aggregate: number;
   total: number;
 }
 
 export function estimateGeminiCalls(config: HarnessConfig): CallEstimate {
   if (config.replayTranscript) {
-    return { tutorAndStudent: 0, evaluation: config.evalRepeats, total: config.evalRepeats };
+    return { tutorAndStudent: 0, evaluation: config.evalRepeats, aggregate: 0, total: config.evalRepeats };
   }
   const sessions = config.personas.length * config.sessionsPerPersona;
   const tutorAndStudent = sessions * config.turns * 2; // 1 llamada al tutor + 1 al alumno sintético por turno
   const evaluation = sessions * config.evalRepeats;
-  return { tutorAndStudent, evaluation, total: tutorAndStudent + evaluation };
+  const aggregate = config.aggregate ? config.aggregateRepeats : 0;
+  return { tutorAndStudent, evaluation, aggregate, total: tutorAndStudent + evaluation + aggregate };
 }

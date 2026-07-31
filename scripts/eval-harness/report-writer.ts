@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ChatMessage } from "./gemini-client";
 import type { EvaluationRunResult } from "./evaluate-runner";
+import type { AggregateRunResult } from "./aggregate-runner";
 import { computeRunMetrics, aggregateMetrics, type AggregatedMetrics } from "./metrics";
 
 export function ensureDir(path: string): void {
@@ -64,6 +65,39 @@ export function writeSessionArtifacts(params: {
   writeFileSync(join(sessionDir, "metrics.json"), JSON.stringify({ perRun: perRunMetrics, aggregated }, null, 2), "utf-8");
 
   return { personaId, sessionLabel, aggregated };
+}
+
+/**
+ * Escribe los artefactos del paso de agregado (getAggregateSummaryPrompt corrido
+ * --aggregate-repeats veces sobre el mismo set de resúmenes) bajo <baseDir>/aggregate/.
+ */
+export function writeAggregateArtifacts(baseDir: string, results: AggregateRunResult[]): void {
+  const dir = join(baseDir, "aggregate");
+  ensureDir(dir);
+
+  results.forEach((r, i) => {
+    const n = i + 1;
+    writeFileSync(join(dir, `aggregate-${n}-raw.txt`), r.raw, "utf-8");
+    writeFileSync(join(dir, `aggregate-${n}-summary.md`), r.summary, "utf-8");
+    writeFileSync(
+      join(dir, `aggregate-${n}-recommendations.md`),
+      r.recommendations ?? "(no se encontró el delimitador ===RECOMENDACIONES=== en esta corrida)",
+      "utf-8"
+    );
+  });
+
+  const delimiterRate = results.filter((r) => r.delimiterFound).length / results.length;
+  const lines: string[] = [];
+  lines.push(`# Resumen del paso de agregado\n`);
+  lines.push(`Repeats: ${results.length}`);
+  lines.push(`Delimitador \`===RECOMENDACIONES===\` encontrado: ${(delimiterRate * 100).toFixed(0)}%\n`);
+  lines.push(`## Recomendaciones por repeat (para eyeballear consistencia)\n`);
+  results.forEach((r, i) => {
+    lines.push(`### Repeat ${i + 1}\n`);
+    lines.push(`\`\`\`\n${r.recommendations ?? "(sin delimitador)"}\n\`\`\`\n`);
+  });
+
+  writeFileSync(join(dir, "aggregate-summary.md"), lines.join("\n"), "utf-8");
 }
 
 export function writeRunConfig(baseDir: string, config: unknown): void {

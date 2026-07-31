@@ -32,6 +32,8 @@ Todos los flags son opcionales:
 | `--minutes <n>` | `20` | `timeMinutes` que se le pasa al tutor (afecta cuántos conceptos identifica internamente). |
 | `--practice` | `false` | Modo práctica (sin fase de cierre forzada). |
 | `--eval-repeats <n>` | `3` | Cuántas veces se corre la evaluación **sobre el mismo transcript**, para medir la volatilidad propia del prompt de evaluación (aislada de la conversación). |
+| `--aggregate` | `false` | Además de tutor+evaluación, corre `getAggregateSummaryPrompt` sobre los resúmenes generados. Ver sección "Modo agregado" más abajo. |
+| `--aggregate-repeats <n>` | `3` | Cuántas veces se corre el paso de agregado **sobre el mismo set de resúmenes**, para medir su propia volatilidad. Solo aplica con `--aggregate`. |
 | `--out <nombre>` | `corrida-<timestamp>` | Subcarpeta de `results/` donde se guarda todo. |
 | `--temperature <n>` | (default de producción: `0.4` tutor / `0.2` evaluación) | Override de A/B testing para esta corrida. Ej: `--temperature 1` reproduce el comportamiento viejo (sin `temperature` seteada, default del modelo) para comparar contra los nuevos defaults. |
 | `--models a,b,c` | (default de producción: `TUTOR_MODELS`/`ANALYSIS_MODELS` de `src/lib/gemini-analysis.ts`) | Override de la cadena de modelos a probar, ej. para evaluar Gemini 3 sin tocar código de producción: `--models gemini-3-flash-preview,gemini-2.5-flash`. |
@@ -90,11 +92,33 @@ Esto salta la generación de conversación y corre `evaluate-runner.ts` directo 
 
 Lo único que el harness no mide (intencionalmente, es la única parte que sigue siendo juicio humano en esta fase): si el feedback generado **se siente correcto y útil** para esa sesión real específica. Anotalo a mano en `manual-sessions/notas.md`.
 
+## Modo agregado (`--aggregate`)
+
+Prueba `getAggregateSummaryPrompt()` (el análisis por unidad/materia que ve la profesora en el dashboard) — el harness no lo cubría hasta el 2026-07-31, solo tutor + evaluación individual.
+
+```bash
+npm run eval:harness -- \
+  --personas alumno_ejemplar,alumno_confundido,alumno_no_leyo,alumno_confuso_ofuscado,alumno_mixto \
+  --sessions-per-persona 2 \
+  --aggregate \
+  --aggregate-repeats 5 \
+  --out mi-corrida-agregado
+```
+
+Qué hace: corre sesiones sintéticas normales (tutor + evaluación, igual que el modo default), toma el `professor_summary` de cada una que haya tenido delimitador válido, le asigna una demografía sintética cíclica (4 perfiles fijos de carrera/año/género, para poder ejercitar la sección "Patrones por perfil demográfico" del prompt), y corre `getAggregateSummaryPrompt` `--aggregate-repeats` veces sobre ese mismo set — así se mide la volatilidad propia del paso de agregado, aislada de la de las sesiones individuales.
+
+Se descartó (a propósito) alimentar este modo con sesiones reales de Supabase: rompería el diseño de "todo local, no toca Supabase" del harness, y expondría conversaciones reales (aunque anonimizadas) en `results/`. Si en el futuro hace falta validar contra un caso real específico, hacerlo aparte y a mano, no agregado a este modo.
+
+**Flags nuevos**: `--aggregate` (activa el modo, default `false`), `--aggregate-repeats <n>` (default `3`).
+
+**Output**: `results/<out>/aggregate/aggregate-N-{raw,summary,recommendations}.{txt,md}` + `aggregate-summary.md` con el % de veces que apareció el delimitador `===RECOMENDACIONES===` y las recomendaciones de cada repeat lado a lado.
+
 ## Nota de mantenimiento
 
 Este harness duplica, con comentarios explícitos de "mantener sincronizado", dos piezas de lógica que viven en route handlers de Next.js y no se pueden importar directamente:
 
 - El parseo de `===RESUMEN_PROFESOR===` + `stripPreamble` de `src/app/api/evaluate/route.ts` (en `evaluate-runner.ts`).
+- El parseo de `===RECOMENDACIONES===` de `src/app/api/summary/route.ts` (en `aggregate-runner.ts`).
 - El texto agregado en fase de cierre de `src/app/api/chat/route.ts` (en `session-runner.ts`).
 
-Si se toca cualquiera de esos dos archivos, revisar si hay que actualizar también estas copias.
+Si se toca cualquiera de esos archivos, revisar si hay que actualizar también estas copias.

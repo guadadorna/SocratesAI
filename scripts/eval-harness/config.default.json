@@ -9,5 +9,7 @@
   "out": "",
   "replayTranscript": null,
   "temperature": null,
-  "models": null
+  "models": null,
+  "aggregate": false,
+  "aggregateRepeats": 3
 }

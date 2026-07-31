@@ -294,12 +294,13 @@ Escribile directamente al estudiante (usá "vos"). Sé DIRECTO y HONESTO. No sea
 
 3. **Conceptos a reforzar o confusiones detectadas**
    Sé específico: qué dijiste mal, qué confundiste, qué no supiste responder. El error concreto, no etiquetas vagas.
+   Nombrá cada confusión con el término exacto del material al que corresponde (no una paráfrasis distinta cada vez) — así podés releer justo esa parte.
 
 4. **Preguntas abiertas**
    Temas del material que no se exploraron o quedaron sin cerrar.
 
 5. **Sugerencias de estudio**
-   Para cada concepto que no dominaste, indicá qué secciones, slides o partes específicas del material te conviene releer. Referenciá por nombre de sección o número de slide si el material lo permite. Sé concreto y accionable.
+   Para cada concepto de la sección 3, indicá qué sección, slide o parte específica del material te conviene releer Y qué deberías poder responder puntualmente después de hacerlo (no "repasar el tema", sino la pregunta concreta que deberías poder contestar). Referenciá por nombre de sección o número de slide si el material lo permite. Sé concreto y accionable.
 
 Formato: segunda persona del singular (vos), español rioplatense, máximo 2-3 oraciones por punto.
 
@@ -321,12 +322,13 @@ Exactamente el mismo análisis que el Texto 1 pero en tercera persona y tono for
 
 3. **Conceptos a reforzar o confusiones detectadas**
    Sé específico: qué dijo mal, qué confundió, qué no supo responder. El error concreto, no etiquetas vagas.
+   Nombrá cada confusión con el término exacto del material al que corresponde (no una paráfrasis distinta cada vez) — esto permite comparar esta sesión con otras de la misma unidad.
 
 4. **Preguntas abiertas**
    Temas del material que no se exploraron o quedaron sin cerrar.
 
 5. **Sugerencias de estudio**
-   Qué partes específicas del material debería releer. Sé concreto.
+   Para cada concepto de la sección 3, indicá qué parte específica del material conviene releer Y qué debería poder responder puntualmente después de hacerlo (no "repasar el tema", sino la pregunta concreta que debería poder contestar). Sé concreto.
 
 Formato: tercera persona, español rioplatense, conciso, máximo 2-3 oraciones por punto.`;
 }
@@ -379,13 +381,13 @@ Generá un análisis grupal que incluya:
    Cuáles fueron los conceptos centrales que se trabajaron en las sesiones.
 
 3. **Diagnóstico de comprensión por tema**
-   Para cada tema: qué tan bien lo entendió el grupo en general, cuáles fueron los errores o confusiones más frecuentes.
+   Para cada tema: qué tan bien lo entendió el grupo en general, y cuáles fueron los errores o confusiones más frecuentes — nombralos con el término exacto del material (no una paráfrasis genérica) y, cuando los reportes lo permitan, indicá en cuántas sesiones apareció cada confusión.
 
 4. **Patrones por perfil demográfico**
    Si hay diferencias notables entre carreras, años o géneros: qué perfiles mostraron mejor comprensión, cuáles tuvieron más dificultades y en qué temas. Si no hay suficientes datos para comparar, indicalo.
 
 5. **Recomendaciones para la próxima clase**
-   Qué temas conviene reforzar, qué tipo de preguntas generaron más confusión.
+   Para cada tema a reforzar, dá una acción concreta para la próxima clase — no "reforzar X", sino qué hacer: qué ejemplo del material retomar, qué distinción marcar explícitamente, o qué pregunta corta hacerle al grupo para chequear si ya lo entendieron. Priorizá los temas que aparecieron en más sesiones.
 
 IMPORTANTE:
 - Nunca menciones ni des pistas sobre el desempeño individual de ningún estudiante.
