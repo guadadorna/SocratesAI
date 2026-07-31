@@ -263,6 +263,7 @@ INSTRUCCIONES DE FORMATO (obligatorias):
 - Separalos con el marcador exacto en su propia línea: ===RESUMEN_PROFESOR===
 - Después del marcador, comenzá directamente con el contenido del Texto 2. Sin aclaración previa.
 - No agregues ningún texto antes del Texto 1 ni después del Texto 2.
+- Cada uno de los 5 puntos de cada texto tiene que llevar su título en negrita markdown, exactamente como está escrito en la plantilla de abajo (por ejemplo: **Resumen de la sesión**). Nunca devuelvas los 5 puntos como un párrafo de prosa corrida sin ningún título — el sistema que muestra esto depende de que cada título esté marcado en negrita para separarlos visualmente.
 
 
 
