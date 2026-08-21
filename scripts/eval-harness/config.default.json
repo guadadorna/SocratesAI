@@ -1,0 +1,15 @@
+{
+  "pdf": null,
+  "personas": ["alumno_ejemplar", "alumno_confundido", "alumno_no_leyo"],
+  "sessionsPerPersona": 1,
+  "turns": 6,
+  "minutes": 20,
+  "practiceMode": false,
+  "evalRepeats": 3,
+  "out": "",
+  "replayTranscript": null,
+  "temperature": null,
+  "models": null,
+  "aggregate": false,
+  "aggregateRepeats": 3
+}

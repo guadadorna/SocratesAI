@@ -103,6 +103,8 @@ export default function FeedbackPage() {
           career: sessionData.demographic?.career ?? null,
           year: sessionData.demographic?.year ?? null,
           professorSummary: data.professorSummary ?? null,
+          professorId: sessionData.professorId ?? null,
+          subjectId: sessionData.subjectId ?? null,
         }),
       }).catch((err) => console.error("[persistSession] Error al guardar:", err));
     } catch (err) {

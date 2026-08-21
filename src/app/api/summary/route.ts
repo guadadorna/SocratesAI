@@ -1,39 +1,17 @@
-import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
 import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { getAggregateSummaryPrompt } from "@/lib/prompts";
 import { normalizePdfName } from "@/lib/sanitize";
+import { generateWithFallback, buildFilterKey } from "@/lib/gemini-analysis";
 
 export const maxDuration = 60;
 
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
-
-async function generateWithFallback(prompt: string): Promise<string> {
-  for (const modelName of MODELS) {
-    try {
-      const { text } = await generateText({
-        model: google(modelName),
-        prompt,
-      });
-      return text;
-    } catch (error) {
-      const isLastModel = modelName === MODELS[MODELS.length - 1];
-      if (isLastModel) throw error;
-    }
-  }
-  throw new Error("Todos los modelos fallaron");
-}
-
-function buildFilterKey(careers: string[], years: number[], genders: string[]): string {
-  const parts: string[] = [];
-  if (careers.length > 0) parts.push(`careers:${[...careers].sort().join(",")}`);
-  if (years.length > 0) parts.push(`years:${[...years].sort((a, b) => a - b).join(",")}`);
-  if (genders.length > 0) parts.push(`genders:${[...genders].sort().join(",")}`);
-  return parts.length ? parts.join("|") : "all";
-}
-
 export async function GET(request: Request) {
   try {
+    const serverSupabase = await createSupabaseServerClient();
+    const { data: userData } = await serverSupabase.auth.getUser();
+    const userId = userData.user?.id;
+
     const { searchParams } = new URL(request.url);
     const pdfName = searchParams.get("pdf");
     const careersParam = searchParams.get("careers");
@@ -85,6 +63,10 @@ export async function GET(request: Request) {
       .select("professor_summary, duration_minutes, mode, gender, career, year")
       .or(`pdf_name.eq.${normalizedPdfName},pdf_name.ilike.${baseName}_%`)
       .not("professor_summary", "is", null);
+
+    if (userId) {
+      query = query.or(`professor_id.eq.${userId},professor_id.is.null`);
+    }
 
     // Supabase filter builder is chainable — TypeScript infers the type correctly
     if (careers.length > 0) query = query.in("career", careers);

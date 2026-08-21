@@ -1,9 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import { PillToggle, toggle } from "@/components/professor/PillToggle";
+import { StatCard } from "@/components/professor/StatCard";
+import { StarRating } from "@/components/professor/StarRating";
+import { ProfesorChat } from "@/components/professor/ProfesorChat";
+import { ShareSubjectButtons } from "@/components/professor/ShareSubjectButtons";
+import type { AnalysisResult } from "@/components/professor/types";
 
 interface UnitStats {
   pdf_name: string;
@@ -14,267 +21,154 @@ interface UnitStats {
   avg_duration: number | null;
 }
 
-interface Demographics {
-  careers: Record<string, number>;
-  years: Record<string, number>;
-  genders: Record<string, number>;
-  avg_duration: number | null;
+interface Subject {
+  id: string;
+  name: string;
+  created_at: string;
+  enrolled_count?: number;
+  material_count?: number;
 }
 
-interface AnalysisResult {
-  summary: string;
-  recommendations?: string;
-  sessionCount: number;
-  demographics: Demographics;
-}
-
-function PillToggle({
-  label,
-  count,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  count: number;
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-        selected
-          ? "bg-teal-600 border-teal-600 text-white"
-          : "bg-white border-gray-300 text-gray-600 hover:border-gray-400"
-      }`}
-    >
-      {label}
-      <span
-        className={`text-xs rounded-full px-1.5 py-0.5 ${
-          selected
-            ? "bg-teal-500 text-teal-100"
-            : "bg-gray-100 text-gray-500"
-        }`}
-      >
-        {count}
-      </span>
-    </button>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-}) {
-  return (
-    <div className="bg-gray-50 rounded-lg px-4 py-3 text-center">
-      <div
-        className={`text-2xl font-bold ${highlight ? "text-teal-700" : "text-gray-800"}`}
-      >
-        {value}
-      </div>
-      <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-    </div>
-  );
-}
-
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
-function ProfesorChat({
-  analysisContext,
-  pdfName,
-}: {
-  analysisContext: string;
-  pdfName: string;
-}) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+function MisMaterias({ professorId }: { professorId: string }) {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newFile, setNewFile] = useState<File | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    fetch("/api/professor/subjects")
+      .then((r) => r.json())
+      .then((data) => setSubjects(Array.isArray(data) ? data : []))
+      .catch(() => setSubjects([]))
+      .finally(() => setLoading(false));
+  }, [professorId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    const userMsg: ChatMessage = { role: "user", content: input };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput("");
-    setIsLoading(true);
-
+    if (!newName.trim() || creating) return;
+    setCreating(true);
+    setCreateError(null);
+    const formData = new FormData();
+    formData.append("name", newName.trim());
+    if (newFile) formData.append("file", newFile);
     try {
-      const response = await fetch("/api/professor/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages, analysisContext, pdfName }),
-      });
-
-      if (!response.ok) throw new Error("Error en la respuesta");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      const decoder = new TextDecoder();
-      let assistantContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        assistantContent += decoder.decode(value);
-        setMessages([...newMessages, { role: "assistant", content: assistantContent }]);
-      }
-    } catch (error) {
-      console.error("[ProfesorChat] Error:", error);
-      setMessages([
-        ...newMessages,
-        { role: "assistant", content: "Hubo un error al procesar tu pregunta. Intentá de nuevo." },
-      ]);
+      const res = await fetch("/api/professor/subjects", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) { setCreateError(data.error ?? "Error al crear la materia"); return; }
+      setSubjects((prev) => [data, ...prev]);
+      setNewName("");
+      setNewFile(null);
+      setShowForm(false);
+    } catch {
+      setCreateError("Error al crear la materia. Intentá de nuevo.");
     } finally {
-      setIsLoading(false);
+      setCreating(false);
     }
   };
 
   return (
-    <div className="no-print mt-6 bg-white rounded-xl border border-gray-200 p-5">
-      <p className="text-sm font-semibold text-gray-800 mb-1">
-        Preguntas sobre el análisis
-      </p>
-      <p className="text-xs text-gray-400 mb-4">
-        Preguntale a Gemini sobre los resultados: errores frecuentes, diferencias entre grupos, qué reforzar, etc.
-      </p>
+    <div className="mb-8">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-gray-900">Mis materias</h3>
+        <button
+          onClick={() => { setShowForm((v) => !v); setCreateError(null); }}
+          className="text-sm text-teal-600 hover:text-teal-700 font-medium"
+        >
+          {showForm ? "Cancelar" : "+ Nueva materia"}
+        </button>
+      </div>
 
-      {/* Messages */}
-      {messages.length > 0 && (
-        <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-          {messages.map((m, i) => (
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nombre de la materia</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Ej: EPP 2026 — Comisión Guada"
+              required
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-900"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">
+              Material (PDF) <span className="text-gray-400 font-normal">— opcional, podés cargarlo después</span>
+            </label>
             <div
-              key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                newFile ? "border-teal-400 bg-teal-50" : "border-gray-300 hover:border-gray-400"
+              }`}
             >
-              <div
-                className={`max-w-[85%] rounded-xl px-4 py-2.5 text-sm ${
-                  m.role === "user"
-                    ? "bg-teal-600 text-white"
-                    : "bg-gray-50 border border-gray-200 text-gray-800"
-                }`}
-              >
-                {m.role === "user" ? (
-                  <p>{m.content}</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setNewFile(e.target.files?.[0] ?? null)}
+                className="hidden"
+              />
+              {newFile ? (
+                <p className="text-sm text-teal-700 font-medium">{newFile.name}</p>
+              ) : (
+                <p className="text-sm text-gray-500">Hacé click para seleccionar un PDF</p>
+              )}
+            </div>
+          </div>
+          {createError && <p className="text-sm text-red-600">{createError}</p>}
+          <button
+            type="submit"
+            disabled={creating || !newName.trim()}
+            className="w-full py-2 px-4 rounded-lg text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 transition-colors"
+          >
+            {creating ? "Creando..." : "Crear materia"}
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-sm text-gray-400">Cargando materias...</p>
+      ) : subjects.length === 0 ? (
+        <p className="text-sm text-gray-400">
+          Todavía no tenés materias. Creá una para compartir el link con tus alumnos.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {subjects.map((s) => (
+            <div key={s.id} className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+              <Link href={`/profesor/materias/${s.id}`} className="min-w-0 hover:opacity-70 transition-opacity">
+                <p className="text-sm font-medium text-gray-900 truncate">{s.name}</p>
+                {s.material_count ? (
+                  <p className="text-xs text-gray-400 truncate">
+                    {s.material_count} material{s.material_count === 1 ? "" : "es"}
+                  </p>
                 ) : (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkMath]}
-                    rehypePlugins={[rehypeKatex]}
-                    components={{
-                      p: ({ children }) => (
-                        <p className="leading-relaxed mb-1 last:mb-0">{children}</p>
-                      ),
-                      strong: ({ children }) => (
-                        <strong className="font-semibold">{children}</strong>
-                      ),
-                      ul: ({ children }) => (
-                        <ul className="list-disc list-inside space-y-0.5 pl-1">{children}</ul>
-                      ),
-                      ol: ({ children }) => (
-                        <ol className="list-decimal list-inside space-y-0.5 pl-1">{children}</ol>
-                      ),
-                      li: ({ children }) => <li>{children}</li>,
-                    }}
-                  >
-                    {m.content}
-                  </ReactMarkdown>
+                  <p className="text-xs text-amber-600">Sin material cargado</p>
                 )}
+                <p className="text-xs text-gray-400">
+                  {s.enrolled_count ?? 0} alumno{s.enrolled_count === 1 ? "" : "s"} inscripto{s.enrolled_count === 1 ? "" : "s"}
+                </p>
+              </Link>
+              <div className="flex-shrink-0">
+                <ShareSubjectButtons
+                  subjectId={s.id}
+                  subjectName={s.name}
+                  disabled={!s.material_count}
+                />
               </div>
             </div>
           ))}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
-                <span className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                </span>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
         </div>
       )}
-
-      {/* Input */}
-      <form onSubmit={handleSubmit} className="flex gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="¿Qué tema tuvo más dificultades? ¿Cómo les fue a los de 2° año?..."
-          disabled={isLoading}
-          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white text-gray-900 disabled:bg-gray-50 disabled:text-gray-400"
-        />
-        <button
-          type="submit"
-          disabled={isLoading || !input.trim()}
-          className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
-        >
-          Enviar
-        </button>
-      </form>
     </div>
   );
 }
 
-function StarRating({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  const [hovered, setHovered] = useState(0);
-  const effective = hovered || value;
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHovered(n)}
-          onMouseLeave={() => setHovered(0)}
-          className={`text-2xl leading-none transition-colors ${
-            n <= effective ? "text-amber-400" : "text-gray-300"
-          }`}
-        >
-          ★
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function toggle(set: Set<string>, value: string): Set<string> {
-  const next = new Set(set);
-  if (next.has(value)) {
-    if (next.size > 1) next.delete(value);
-  } else {
-    next.add(value);
-  }
-  return next;
-}
-
-export function ProfesorDashboard() {
+export function ProfesorDashboard({ professorId }: { professorId: string }) {
   const [units, setUnits] = useState<UnitStats[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(true);
   const [unitsError, setUnitsError] = useState<string | null>(null);
@@ -750,19 +644,23 @@ export function ProfesorDashboard() {
 
   if (units.length === 0) {
     return (
-      <div className="text-center py-24">
-        <p className="text-gray-500 text-lg mb-2">
-          Todavía no hay sesiones registradas.
-        </p>
-        <p className="text-gray-400 text-sm">
-          Las sesiones aparecen acá cuando los alumnos completan una tutoría.
-        </p>
+      <div>
+        <MisMaterias professorId={professorId} />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div>
+      <MisMaterias professorId={professorId} />
+      <details className="mt-2 border-t border-gray-200 pt-4">
+        <summary className="cursor-pointer text-sm font-medium text-gray-500 hover:text-gray-700 select-none">
+          Ejemplos / Tutorial
+        </summary>
+        <p className="text-xs text-gray-400 mt-2 mb-3">
+          Sesiones de prueba sin materia asociada — quedan acá como referencia de cómo funciona el tutor.
+        </p>
+        <div className="space-y-4">
       {units.map((unit) => {
         const topCareers = Object.entries(unit.careers)
           .sort((a, b) => b[1] - a[1])
@@ -832,6 +730,8 @@ export function ProfesorDashboard() {
           </div>
         );
       })}
+        </div>
+      </details>
     </div>
   );
 }

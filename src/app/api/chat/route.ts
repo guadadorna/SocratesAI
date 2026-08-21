@@ -1,11 +1,9 @@
 import { google } from "@ai-sdk/google";
 import { streamText } from "ai";
 import { getTutorPrompt } from "@/lib/prompts";
+import { TUTOR_MODELS, TEMPERATURES } from "@/lib/gemini-analysis";
 
 export const maxDuration = 60;
-
-// Modelos en orden de preferencia
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
 
 export async function POST(request: Request) {
   try {
@@ -34,13 +32,14 @@ export async function POST(request: Request) {
     // Intentar con modelos en orden de preferencia
     let lastError: Error | null = null;
 
-    for (const modelName of MODELS) {
+    for (const modelName of TUTOR_MODELS) {
       try {
         console.log(`Trying model: ${modelName}`);
         const result = streamText({
           model: google(modelName),
           system: systemPrompt,
           messages,
+          temperature: TEMPERATURES.tutor,
           maxRetries: 0, // Desactivar reintentos internos para que el fallback funcione
         });
 
@@ -86,7 +85,7 @@ export async function POST(request: Request) {
       } catch (error) {
         lastError = error as Error;
         console.log(`Model ${modelName} failed:`, (error as Error).message);
-        const isLastModel = modelName === MODELS[MODELS.length - 1];
+        const isLastModel = modelName === TUTOR_MODELS[TUTOR_MODELS.length - 1];
         if (isLastModel) {
           throw error;
         }

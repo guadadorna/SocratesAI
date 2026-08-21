@@ -1,11 +1,21 @@
-import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { normalizePdfName } from "@/lib/sanitize";
 
 export async function GET() {
-  const { data, error } = await supabase
+  const supabase = await createSupabaseServerClient();
+  const { data: userData } = await supabase.auth.getUser();
+  const userId = userData.user?.id;
+
+  let query = supabase
     .from("sessions")
     .select("pdf_name, gender, career, year, duration_minutes")
     .not("professor_summary", "is", null);
+
+  if (userId) {
+    query = query.or(`professor_id.eq.${userId},professor_id.is.null`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("[professor/units] Error:", error);

@@ -1,6 +1,5 @@
-import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
 import { getCombinedEvaluationPrompt, EVALUATION_SEPARATOR } from "@/lib/prompts";
+import { generateWithFallback } from "@/lib/gemini-analysis";
 
 export const maxDuration = 60;
 
@@ -8,31 +7,6 @@ export const maxDuration = 60;
 function stripPreamble(text: string): string {
   const idx = text.search(/^#{1,3}\s|\*\*/m);
   return idx > 0 ? text.slice(idx).trim() : text;
-}
-
-// Modelos en orden de preferencia
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite"];
-
-async function generateWithFallback(prompt: string): Promise<string> {
-  for (const modelName of MODELS) {
-    try {
-      console.log(`Trying model: ${modelName}`);
-      const { text } = await generateText({
-        model: google(modelName),
-        prompt,
-      });
-      return text;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-      console.log(`Model ${modelName} failed:`, errorMessage);
-      const isLastModel = modelName === MODELS[MODELS.length - 1];
-      if (isLastModel) {
-        throw error;
-      }
-      console.log(`Trying next model...`);
-    }
-  }
-  throw new Error("Todos los modelos fallaron");
 }
 
 export async function POST(request: Request) {

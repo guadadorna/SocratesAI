@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from "uuid";
+
 export interface Demographic {
   gender: string;
   career: string;
@@ -15,6 +17,8 @@ export interface SessionData {
   endedAt?: number;
   messages: { role: "user" | "assistant"; content: string }[];
   demographic?: Demographic;
+  professorId?: string;
+  subjectId?: string;
 }
 
 const SESSION_KEY = "socrates_session";
@@ -39,4 +43,16 @@ export function clearSession(): void {
   if (typeof window !== "undefined") {
     localStorage.removeItem(SESSION_KEY);
   }
+}
+
+const ANON_ID_KEY = "socrates_anon_id";
+
+export function getOrCreateAnonId(): string | null {
+  if (typeof window === "undefined") return null;
+  let anonId = localStorage.getItem(ANON_ID_KEY);
+  if (!anonId) {
+    anonId = uuidv4();
+    localStorage.setItem(ANON_ID_KEY, anonId);
+  }
+  return anonId;
 }

@@ -155,16 +155,16 @@ export default function SessionPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-4 py-3">
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold text-gray-900">SocratesAI</h1>
-            <span className="text-sm text-gray-500 truncate max-w-[200px]">
+          <div className="flex items-center gap-3 min-w-0">
+            <h1 className="text-lg font-semibold text-gray-900 shrink-0">SocratesAI</h1>
+            <span className="text-sm text-gray-500 truncate">
               {session.pdfName}
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="shrink-0 ml-3">
             {session.practiceMode ? (
               <span className="text-sm font-medium text-teal-700 bg-teal-50 px-3 py-1 rounded-lg">
                 Modo práctica
@@ -176,12 +176,6 @@ export default function SessionPage() {
                 onClosingPhase={handleClosingPhase}
               />
             )}
-            <button
-              onClick={handleEndSession}
-              className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              Terminar sesión
-            </button>
           </div>
         </div>
       </header>
@@ -197,7 +191,7 @@ export default function SessionPage() {
           </div>
         )}
 
-        <div className="bg-white border-t border-gray-200 p-4">
+        <div className="bg-white border-t border-gray-200 p-4 space-y-2">
           <form onSubmit={onSubmit} className="flex gap-2">
             <input
               type="text"
@@ -215,6 +209,12 @@ export default function SessionPage() {
               Enviar
             </button>
           </form>
+          <button
+            onClick={handleEndSession}
+            className="w-full py-2 text-sm text-gray-500 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            Terminar sesión
+          </button>
         </div>
       </div>
     </div>
