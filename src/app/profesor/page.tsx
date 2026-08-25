@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { ProfesorDashboard } from "./ProfesorDashboard";
@@ -11,9 +12,17 @@ async function signOut() {
 
 export default async function ProfesorPage() {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getUser();
 
   if (!data.user) {
+    // Sin este log, un rebote al login es indistinguible de "nunca hubo sesion".
+    // Solo nombres de cookies: los valores son los tokens de sesion.
+    const cookieStore = await cookies();
+    console.error("[profesor] sin sesion, redirijo al login", {
+      error: error?.message,
+      status: error?.status,
+      cookies: cookieStore.getAll().map((c) => c.name),
+    });
     redirect("/profesor/login");
   }
 
