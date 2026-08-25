@@ -70,14 +70,32 @@ export async function POST(request: Request) {
     .select("id, name, created_at")
     .single();
 
-  if (error) return NextResponse.json({ error: "Error al crear la materia" }, { status: 500 });
+  if (error) {
+    console.error("[professor/subjects] insert de subjects fallo", {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    });
+    return NextResponse.json({ error: "Error al crear la materia" }, { status: 500 });
+  }
 
   let materialCount = 0;
   if (parsedFile) {
     const { error: materialError } = await supabase
       .from("materials")
       .insert({ subject_id: subject.id, pdf_name: parsedFile.name, pdf_content: parsedFile.text });
-    if (!materialError) materialCount = 1;
+    if (materialError) {
+      // Sin esto, un PDF que no se guarda es invisible: la materia se crea igual.
+      console.error("[professor/subjects] insert de materials fallo", {
+        message: materialError.message,
+        code: materialError.code,
+        details: materialError.details,
+        hint: materialError.hint,
+      });
+    } else {
+      materialCount = 1;
+    }
   }
 
   return NextResponse.json({ ...subject, enrolled_count: 0, material_count: materialCount }, { status: 201 });
