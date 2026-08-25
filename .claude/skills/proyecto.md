@@ -123,6 +123,9 @@ Dashboard → /intake/[id] (datos demograficos) → /session/[id] (chat) → /fe
 ## Limitaciones Conocidas
 - Gemini 2.5 Flash a veces tiene alta demanda (hay fallback a 2.5-flash-lite)
 - El parsing de PDF puede fallar con PDFs complejos o escaneados
+- **Techo de 4,5 MB por archivo (Vercel).** Vercel rechaza con 413 cualquier pedido que supere 4,5 MB, antes de que la funcion corra. La UI y `MAX_PDF_SIZE_BYTES` dicen 10 MB: entre 4,5 y 10 MB la app promete algo que la plataforma no cumple y el usuario ve un error generico. No se puede subir en ningun plan; la salida es subir el PDF del navegador directo a Supabase Storage
+- **PDFs escaneados: la app los acepta sin avisar.** Un PDF sin capa de texto pasa la validacion, se guarda con texto vacio y el tutor arranca una sesion sin material. Peor que fallar
+- **2 mails por hora (Supabase).** El correo de fabrica permite 2 mails/hora para todo el proyecto y no es configurable sin SMTP propio. Como el magic link es la unica puerta de entrada, dos personas probando al mismo tiempo dejan la app inaccesible
 - El formulario de intake tiene estilo basico, pendiente pulir
 - No hay multi-profesor: el dashboard muestra todas las sesiones sin filtrar por docente (N=1 por ahora)
 
@@ -614,6 +617,41 @@ WHERE pdf_name IS NOT NULL AND pdf_content IS NOT NULL;
 - Se descarto migrar el analisis agregado a leer transcripts completos en vez de resumenes individuales (costo/escala); la via elegida es mejorar la especificidad del resumen individual que alimenta al agregado
 - Al escribir sobre Supabase real (produccion), se siguio un flujo de dos pasos: dry-run local primero (sin tocar Supabase) para que Martina revise, y recien con su confirmacion explicita un segundo script hizo el `UPDATE` — se reuso el texto ya generado y revisado en el dry-run en vez de volver a llamar a Gemini, para no gastar de mas ni introducir una variante distinta a la que Martina aprobo
 - `scripts/tmp/` no se committeo (herramientas one-off); queda pendiente decidir si se formalizan dentro de `scripts/` o se borran (ver Pendientes)
+
+### 2026-08-25 - Sesion con Guada (main)
+
+> Sesion de diagnostico, no de features. Tres bugs distintos, todos invisibles porque el error real se descartaba sin registrarlo en ningun lado.
+
+**Lo que se hizo:**
+- Sincronizado el repo local de Guada (estaba 16 commits atras). **Nada que pushear**: `main` ya tenia todo el trabajo de la branch `Martina` desde el merge del PR #8 el 21/08, y Vercel ya lo habia deployado. Verificado comparando los arboles de archivos: `main` y `origin/Martina` son identicos (mismo tree hash `de5b7c2`)
+- Borrada del repo la branch `claude/giroud-bingo-game-app-Z0CNK` (app de bingo de GIRSU, pusheada al repo equivocado), tras verificar archivo por archivo que ese trabajo esta sano en `guadadorna/bingo-girsu`
+- **Confirmado que el login docente con magic link funciona en produccion.** Era lo unico que habia quedado sin verificar del merge del 21/08
+- Agregados tres logs de diagnostico, porque en los tres casos el error real se descartaba: `[auth/callback]` (`33a907a`), `[profesor] sin sesion` con los nombres de cookies presentes (`4dfebc8`), `[professor/subjects]` con el error de Postgres al crear materia y al guardar el PDF (`fd199da`). Los tres fueron decisivos para lo de abajo
+
+**Los tres diagnosticos:**
+1. **"A un docente nuevo no le llega el mail"** (Andres de la Cruz, colega de la UTDT). Eran dos candados: (a) `Allow new users to sign up` apagado en Supabase desde el 21/08, que corta el pedido antes de intentar mandar nada y ni siquiera crea el usuario; (b) el limite de **2 mails por hora** del correo de fabrica, que se agoto probando. Lo mostro el log `[signInWithMagicLink]` (que ya existia desde `f200c6c`) con `email rate limit exceeded`
+2. **"Entro y despues me rebota al login"**. La sesion no se pierde: las cookies son por navegador **y por perfil de Chrome**, y el login estaba vivo en un perfil distinto del que se estaba probando. Se encontro inspeccionando las bases de cookies de los 4 perfiles de Chrome de la maquina. Con `[profesor] sin sesion` quedo claro que en el navegador que rebotaba solo llegaban cookies `code-verifier` y ninguna `sb-<ref>-auth-token`
+3. **"Error al crear la materia"**. Vercel devuelve **413** ante cualquier pedido de mas de 4,5 MB, y corta antes de que la funcion corra (por eso el log nuevo no registraba nada). El PDF pesaba 4,6 MB. Ver Limitaciones Conocidas
+
+**Hallazgo aparte — PDFs escaneados:**
+- El PDF que se queria subir era un escaneo **sin capa de texto**: `pdftotext` devolvia 207.000 caracteres de los cuales **cero eran letras**. Aunque hubiera entrado por tamano, el tutor no habria tenido nada que leer
+- Se OCReo con el motor de Vision de macOS en espanol (32 paginas) y se genero un PDF de texto: **4,6 MB -> 192 KB, 0 -> 141.465 letras extraibles**. Sirve como workaround manual, pero el caso general sigue abierto
+
+**Hipotesis descartada (estaba en la nota anterior, era incorrecta):**
+- Se sostuvo durante parte de la sesion que el correo de fabrica de Supabase **solo entrega a miembros de la organizacion**. Es falso para este proyecto: Andres nunca fue miembro y el mail le llego. Confirmado cruzando su `last_sign_in_at` en Supabase con el `/auth/callback` exitoso de los logs de Vercel, al mismo segundo (24/08 23:32:15). El unico limite real es el de 2 mails/hora
+
+**Decisiones de diseno:**
+- **El registro de docentes queda cerrado**, con alta manual (Users -> Create new user + Auto Confirm). Se evaluo y **se descarto** agregar en el codigo un filtro de mails permitidos (tipo solo `@utdt.edu`): el interruptor de Supabase ya cumple esa funcion, no depende de que la app se acuerde de chequear y no hay que mantenerlo
+- **No se configura SMTP propio por ahora.** Decision de Guada: no quiere administrar otro servicio mientras sean dos docentes. Cuando haga falta, la salida preferida es **login con Google**, que elimina el mail de la ecuacion (sin cupo, sin links de un solo uso, sin la regla del mismo navegador) y va en la direccion del login institucional que va a pedir Sistemas
+- Los logs de diagnostico quedan en produccion por ahora
+
+**Pendientes que salen de esta sesion (para Martu):**
+1. **Bajar el limite de PDF a ~4 MB** en `MAX_PDF_SIZE_BYTES` y en los textos de la UI, y validar del lado del navegador **antes** de subir, con un mensaje que diga el peso real admitido. No agranda lo que entra, pero cambia un error mudo por uno legible
+2. **Rechazar PDFs sin texto extraible**: despues de `parsePdf`, chequear que el texto tenga letras y devolver "este PDF es una imagen escaneada, el tutor no puede leerlo". Aplica a las tres rutas que reciben archivos (`/api/upload`, `/api/professor/subjects`, `/api/professor/subjects/[id]/materials`)
+3. **Bajar el ruido de `themeColor`**: mover `themeColor` de `metadata` a un export `viewport`. Son 76 warnings en 3 dias de logs
+4. **Cerrar SEC-002**: `/api/professor/units` y `/api/summary` siguen devolviendo datos sin exigir credencial (leen quien es el usuario pero no exigen que haya uno). Abierto desde el 21/08
+5. **(mas grande) Subida directa a Supabase Storage**, para sacar el PDF del camino de Vercel y recuperar el limite de 10 MB real
+6. Bajar `[profesor] sin sesion` de `console.error` a algo mas discreto: se dispara cada vez que alguien no logueado abre `/profesor`, que es una situacion normal
 
 ## Instrucciones para Claude
 Cuando trabajes en este proyecto:
